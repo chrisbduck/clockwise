@@ -32,6 +32,7 @@ class ClockwiseGame extends Phaser.Game
 	{
 		this.load.image('ship', 'data/tex/player-ship.png');
 		this.load.image('tiles', 'data/tex/tiles.png');
+		this.load.image('turret', 'data/tex/gun-turret.png');
 		this.load.tilemap('map-top-left', 'data/map/top-left.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-top-right', 'data/map/top-right.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-bottom-left', 'data/map/bottom-left.json', null, Phaser.Tilemap.TILED_JSON);
@@ -45,11 +46,19 @@ class ClockwiseGame extends Phaser.Game
 	{
 		this.physics.startSystem(Phaser.Physics.ARCADE);
 
-		this.maps = [];
-		this.maps.push(new TileMapEntity('map-top-left', 'tiles', () => this.maps[3].nextLayer()));
-		this.maps.push(new TileMapEntity('map-top-right', 'tiles', () => this.maps[0].nextLayer()));
-		this.maps.push(new TileMapEntity('map-bottom-right', 'tiles', () => this.maps[1].nextLayer()));
-		this.maps.push(new TileMapEntity('map-bottom-left', 'tiles', () => this.maps[2].nextLayer()));
+		this.maps = {};
+		var topLeft = new TileMapEntity('map-top-left', 'tiles');
+		var topRight = new TileMapEntity('map-top-right', 'tiles');
+		var bottomRight = new TileMapEntity('map-bottom-right', 'tiles');
+		var bottomLeft = new TileMapEntity('map-bottom-left', 'tiles');
+		topLeft.linkedMap = bottomRight;
+		topRight.linkedMap = bottomLeft;
+		bottomRight.linkedMap = topLeft;
+		bottomLeft.linkedMap = topRight;
+		this.maps['top-left'] = topLeft;
+		this.maps['top-right'] = topRight;
+		this.maps['bottom-right'] = bottomRight;
+		this.maps['bottom-left'] = bottomLeft;
 
 		this.player = new PlayerEntity(32, 32);
 
@@ -57,22 +66,22 @@ class ClockwiseGame extends Phaser.Game
 		this.time.advancedTiming = true;
 
 		this.time.events.loop(1000, () => this.fpsText.text = "FPS: " + this.time.fps, null);
-		//this.time.events.loop(1000, () => console.log(this.time.fps), null).timer.start();
 	}
 
 	//------------------------------------------------------------------------------
 
 	private _update()
 	{
-		this.maps.forEach(map => game.physics.arcade.collide(this.player.sprite, map.currentLayer));
+		for (var key in this.maps)
+			this.maps[key].currentLayer.collideWith(this.player);
 
 		this.player.update();
 	}
 
 	//------------------------------------------------------------------------------
 
-	private maps: TileMapEntity[];
-	private player: PlayerEntity;
+	private maps: { [key: string]: TileMapEntity; };
+	public player: PlayerEntity;
 	private fpsText: Phaser.Text;
 }
 

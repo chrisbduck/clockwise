@@ -19,6 +19,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="app.css" />
+    <Content Include="data\tex\gun-turret.png" />
     <Content Include="data\tex\player-ship.png" />
     <Content Include="data\tex\star.png" />
     <Content Include="data\tex\tiles.png" />
@@ -29,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <TypeScriptCompile Include="app.ts" />
+    <TypeScriptCompile Include="emitters.ts" />
     <TypeScriptCompile Include="entities.ts" />
     <TypeScriptCompile Include="phaser\phaser.d.ts" />
     <TypeScriptCompile Include="phaser\pixi.d.ts" />
