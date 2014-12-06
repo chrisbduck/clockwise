@@ -33,6 +33,7 @@ class ClockwiseGame extends Phaser.Game
 		this.load.image('ship', 'data/tex/player-ship.png');
 		this.load.image('tiles', 'data/tex/tiles.png');
 		this.load.image('turret', 'data/tex/gun-turret.png');
+		this.load.image('breakable', 'data/tex/breakable.png');
 		this.load.tilemap('map-top-left', 'data/map/top-left.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-top-right', 'data/map/top-right.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-bottom-left', 'data/map/bottom-left.json', null, Phaser.Tilemap.TILED_JSON);
@@ -73,7 +74,7 @@ class ClockwiseGame extends Phaser.Game
 	private _update()
 	{
 		for (var key in this.maps)
-			this.maps[key].currentLayer.collideWith(this.player);
+			this.maps[key].currentLayer.collideWithPlayer(this.player);
 
 		this.player.update();
 	}

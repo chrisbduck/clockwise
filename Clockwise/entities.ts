@@ -66,6 +66,10 @@ class PlayerEntity extends SpriteEntity
 
 //------------------------------------------------------------------------------
 
+var TILE_UP = 3;
+var TILE_DOWN = 4;
+var TILE_BREAKABLE_WALL = 5;
+
 class TileMapEntity extends Entity
 {
 	constructor(tilemap: string, tileset: string)
@@ -142,39 +146,20 @@ class TileMapEntity extends Entity
 
 		this.currentLayer = this.layers[layerIndex];
 		this.currentLayer.start();
-		//this.currentlayer = this.
-		//this.currentLayer.visible = true;
-		//this.currentLayer.debug = true;
 
 		this.currentLayerIndex = layerIndex;
 
-		//this.tileMap.setLayer(this.currentLayer);
 		this.tileMap.setCollision(1);
 
-		this.tileMap.setTileIndexCallback(3, () => this.triggerLevelChange(+1), null);
-		this.tileMap.setTileIndexCallback(4, () => this.triggerLevelChange(-1), null);
-		this.tileMap.setTileIndexCallback(5, () => this.breakWall(), null);
-	}
-
-	//------------------------------------------------------------------------------
-
-	private breakWall()
-	{
-		if (this.walled)
-			return;
-		this.walled = true;
-
-		console.log("broken wall");
-		new BreakableWallEmitter(game.player.sprite.x, game.player.sprite.y);
+		this.tileMap.setTileIndexCallback(TILE_UP, () => this.triggerLevelChange(+1), null);
+		this.tileMap.setTileIndexCallback(TILE_DOWN, () => this.triggerLevelChange(-1), null);
 	}
 
 	//------------------------------------------------------------------------------
 
 	private tileMap: Phaser.Tilemap;
 	private name: string;
-	//private tileLayers: Phaser.TilemapLayer[];
 	private layers: TileMapLayerEntity[];
-	//public currentLayer: Phaser.TilemapLayer;
 	public currentLayer: TileMapLayerEntity;
 	private currentLayerIndex: number;
 	private triggerCallback: () => void;
@@ -194,6 +179,12 @@ class TileMapLayerEntity extends Entity
 
 		this.layer = layer;
 		this.entities = [];
+
+		this.group = game.add.group();
+		this.group.enableBody = true;
+		this.group.visible = false;
+
+		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.group);
 	}
 
 	//------------------------------------------------------------------------------
@@ -203,6 +194,8 @@ class TileMapLayerEntity extends Entity
 		this.layer.visible = true;
 		this.layer.debug = true;
 		this.layer.map.setLayer(this.layer);
+
+		this.group.visible = true;
 	}
 
 	//------------------------------------------------------------------------------
@@ -210,18 +203,31 @@ class TileMapLayerEntity extends Entity
 	public stop()
 	{
 		this.layer.visible = false;
+		this.group.visible = false;
 	}
 
 	//------------------------------------------------------------------------------
 
-	public collideWith(spriteEntity: SpriteEntity)
+	public collideWithPlayer(player: PlayerEntity)
 	{
-		game.physics.arcade.collide(spriteEntity.sprite, this.layer);
+		var arcadePhysics = game.physics.arcade;
+		arcadePhysics.collide(player.sprite, this.layer);
+
+		arcadePhysics.overlap(player.sprite, this.group, this.breakWall, null, this);
+	}
+
+	//------------------------------------------------------------------------------
+
+	private breakWall(playerSprite: Phaser.Sprite, wall: Phaser.Sprite)
+	{
+		new BreakableWallEmitter(wall.x, wall.y);
+		wall.kill();
 	}
 
 	//------------------------------------------------------------------------------
 
 	private layer: Phaser.TilemapLayer;
+	private group: Phaser.Group;
 	private entities: Entity[];
 }
 
