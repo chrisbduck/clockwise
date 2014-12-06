@@ -187,3 +187,8 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+/Clockwise/phaser
+/Clockwise/app.js
+/Clockwise/app.js.map
+/Clockwise/entities.js
+/Clockwise/entities.js.map
