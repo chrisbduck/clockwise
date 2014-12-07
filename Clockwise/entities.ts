@@ -19,10 +19,14 @@ class Entity
 
 class SpriteEntity extends Entity
 {
-	constructor(x: number, y: number, key: string)
+	constructor(x: number, y: number, key: string, sprite?: Phaser.Sprite)
 	{
 		super();
-		this.sprite = game.add.sprite(x, y, key);
+
+		if (sprite)
+			this.sprite = sprite;
+		else
+			this.sprite = game.add.sprite(x, y, key);
 	}
 
 	public sprite: Phaser.Sprite;
@@ -41,7 +45,7 @@ class PlayerEntity extends SpriteEntity
 
 	constructor(x: number, y: number)
 	{
-		super(x, y, 'ship');
+		super(x, y, 'guy');
 		game.physics.arcade.enable(this.sprite);
 
 		this.cursorKeys = game.input.keyboard.createCursorKeys();
@@ -50,8 +54,11 @@ class PlayerEntity extends SpriteEntity
 		this.chargeHaltPending = false;
 		this.prevVel = new Phaser.Point(0, 0);
 
-		this.sprite.body.maxVelocity.setTo(PlayerEntity.NORMAL_VEL, PlayerEntity.NORMAL_VEL);
-		this.sprite.body.drag.setTo(PlayerEntity.DRAG, PlayerEntity.DRAG);
+		var body: Phaser.Physics.Arcade.Body = this.sprite.body;
+		body.maxVelocity.setTo(PlayerEntity.NORMAL_VEL, PlayerEntity.NORMAL_VEL);
+		body.drag.setTo(PlayerEntity.DRAG, PlayerEntity.DRAG);
+		body.bounce.x = 0.2;
+		body.bounce.y = 0.2;
 	}
 
 	//------------------------------------------------------------------------------
@@ -137,9 +144,18 @@ class PlayerEntity extends SpriteEntity
 
 //------------------------------------------------------------------------------
 
+var TILE_WALL = 1;
+var TILE_WATER = 2;
 var TILE_UP = 3;
 var TILE_DOWN = 4;
 var TILE_BREAKABLE_WALL = 5;
+var TILE_MONSTER = 6;
+var TILE_HOLE = 6;
+var TILE_ROCK = 7;
+var TILE_DOOR = 8;
+var TILE_DIAMOND = 9;
+var TILE_KEY = 10;
+var TILE_BUTTON = 11;
 
 class TileMapEntity extends Entity
 {
@@ -152,9 +168,12 @@ class TileMapEntity extends Entity
 		this.tileMap = game.add.tilemap(tilemap);
 		this.tileMap.addTilesetImage(tileset);
 		this.layers = [];
-		this.layers.push(new TileMapLayerEntity(this.tileMap.createLayer("Tile Layer 1")));
-		this.layers.push(new TileMapLayerEntity(this.tileMap.createLayer("Tile Layer 2")));
-		this.layers.forEach(layer => layer.stop());
+		for (var layerName in { "Tile Layer 1": 0, "Tile Layer 2": 0 })
+		{
+			var layer: TileMapLayerEntity = new TileMapLayerEntity(this.tileMap.createLayer(layerName), this);
+			layer.stop();
+			this.layers.push(layer);
+		}
 
 		this.currentLayer = null;
 
@@ -228,35 +247,59 @@ class TileMapEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
-	private tileMap: Phaser.Tilemap;
-	private name: string;
-	private layers: TileMapLayerEntity[];
+	public name: string;
 	public currentLayer: TileMapLayerEntity;
+	public linkedMap: TileMapEntity;
+
+	private tileMap: Phaser.Tilemap;
+	private layers: TileMapLayerEntity[];
 	private currentLayerIndex: number;
 	private triggerCallback: () => void;
 	private haveGoneUp: boolean;
-	public linkedMap: TileMapEntity;
-
-	private walled: boolean;
 }
 
 //------------------------------------------------------------------------------
 
+var ROCK_DRAG = 100;
+
 class TileMapLayerEntity extends Entity
 {
-	constructor(layer: Phaser.TilemapLayer)
+	constructor(layer: Phaser.TilemapLayer, tileMapEntity: TileMapEntity)
 	{
 		super();
 
+		this.tileMap = tileMapEntity;
 		this.layer = layer;
 		this.entities = [];
 
-		this.group = game.add.group();
-		this.group.enableBody = true;
-		this.group.visible = false;
+		this.breakableWallGroup = game.add.group();
+		this.breakableWallGroup.enableBody = true;
+		this.breakableWallGroup.visible = false;
 
-		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.group, { 'body.immovable': true });
-		this.group.forEach(sprite => sprite.body.immovable = true, null);
+		this.holeGroup = game.add.group();
+		this.holeGroup.enableBody = true;
+		this.holeGroup.visible = false;
+		//this.holes = [];
+
+		this.rockGroup = game.add.group();
+		this.rockGroup.enableBody = true;
+		this.rockGroup.visible = false;
+		//this.rocks = [];
+
+		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.breakableWallGroup);
+		this.breakableWallGroup.forEach(sprite => sprite.body.immovable = true, null);
+
+		layer.map.createFromTiles(TILE_MONSTER, -1, 'hole', layer, this.holeGroup);
+		this.holeGroup.forEach(sprite =>
+		{
+			sprite.body.immovable = true;
+		}, null);
+
+		layer.map.createFromTiles(TILE_ROCK, -1, 'rock', layer, this.rockGroup);
+		this.rockGroup.forEach(sprite =>
+		{
+			sprite.body.drag.setTo(ROCK_DRAG, ROCK_DRAG);
+		}, null);
 	}
 
 	//------------------------------------------------------------------------------
@@ -267,7 +310,9 @@ class TileMapLayerEntity extends Entity
 		this.layer.debug = true;
 		this.layer.map.setLayer(this.layer);
 
-		this.group.visible = true;
+		this.breakableWallGroup.visible = true;
+		this.holeGroup.visible = true;
+		this.rockGroup.visible = true;
 	}
 
 	//------------------------------------------------------------------------------
@@ -275,7 +320,9 @@ class TileMapLayerEntity extends Entity
 	public stop()
 	{
 		this.layer.visible = false;
-		this.group.visible = false;
+		this.breakableWallGroup.visible = false;
+		this.holeGroup.visible = false;
+		this.rockGroup.visible = false;
 	}
 
 	//------------------------------------------------------------------------------
@@ -284,8 +331,38 @@ class TileMapLayerEntity extends Entity
 	{
 		var arcadePhysics = game.physics.arcade;
 		arcadePhysics.collide(player.sprite, this.layer, this.hitUnbreakableWall, null, this);
+		arcadePhysics.collide(player.sprite, this.breakableWallGroup, this.hitBreakableWall, null, this);
+		arcadePhysics.collide(player.sprite, this.holeGroup);
+		arcadePhysics.collide(player.sprite, this.rockGroup);
+	}
 
-		arcadePhysics.collide(player.sprite, this.group, this.hitBreakableWall, null, this);
+	//------------------------------------------------------------------------------
+	// Collide mobile objects with a group of walls (e.g., external ones - but we call this for internal ones as well)
+
+	public collideMobileObjectsWithLayer(layerEntity: TileMapLayerEntity)
+	{
+		//console.log(this.tileMap.name, "colliding with", layer.tileMap.name);
+		var arcadePhysics = game.physics.arcade;
+
+		// Collide the monsters and rocks with the walls in the given layer
+		/*var collideTargets = [layer, layer.breakableWallGroup];
+		for (var targetIndex = 0; targetIndex < collideTargets.length; ++targetIndex)
+		{
+			var wallGroup = collideTargets[targetIndex];
+			arcadePhysics.collide(this.monsterGroup, wallGroup);
+			arcadePhysics.collide(this.rockGroup, wallGroup);
+		}*/
+		arcadePhysics.collide(this.rockGroup, layerEntity.layer);
+		arcadePhysics.collide(this.rockGroup, layerEntity.breakableWallGroup);
+	}
+
+	//------------------------------------------------------------------------------
+
+	public collideMobileObjectsTogether()
+	{
+		// Collide the rocks with the holes in the same layer, and the rocks with the other rocks
+		game.physics.arcade.overlap(this.rockGroup, this.holeGroup, this.rockHitHole);
+		game.physics.arcade.collide(this.rockGroup, this.rockGroup);
 	}
 
 	//------------------------------------------------------------------------------
@@ -310,9 +387,60 @@ class TileMapLayerEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
+	private rockHitHole(rockSprite: Phaser.Sprite, holeSprite: Phaser.Sprite)
+	{
+		var arcadePhysics = game.physics.arcade;
+		var body: Phaser.Physics.Arcade.Body = rockSprite.body;
+		if (arcadePhysics.distanceBetween(rockSprite, holeSprite) < 5)
+		{
+			// Fill the hole with the rock - destroy both objects
+			new FilledHoleEmitter(holeSprite.x, holeSprite.y);
+			rockSprite.kill();
+			holeSprite.kill();
+			return;
+		}
+
+		// Move the rock towards the centre of the hole
+		game.physics.arcade.accelerateToObject(rockSprite, holeSprite, 100, 500, 500);
+	}
+
+	//------------------------------------------------------------------------------
+
+	private tileMap: TileMapEntity;
 	private layer: Phaser.TilemapLayer;
-	private group: Phaser.Group;
+
+	private breakableWallGroup: Phaser.Group;
+	private holeGroup: Phaser.Group;
+	private rockGroup: Phaser.Group;
+
+	//private holes: HoleEntity[];
+	//private rocks: RockEntity[];
+
 	private entities: Entity[];
 }
 
+//------------------------------------------------------------------------------
+
+/*class HoleEntity extends SpriteEntity
+{
+	constructor(sprite: Phaser.Sprite)
+	{
+		super(0, 0, null, sprite);
+		sprite.body.immovable = true;
+	}
+}
+
+//------------------------------------------------------------------------------
+
+class RockEntity extends SpriteEntity
+{
+	static DRAG = 100;
+
+	constructor(sprite: Phaser.Sprite)
+	{
+		super(0, 0, null, sprite);
+		sprite.body.drag.setTo(RockEntity.DRAG, RockEntity.DRAG);
+	}
+}
+*/
 //------------------------------------------------------------------------------

@@ -30,10 +30,13 @@ class ClockwiseGame extends Phaser.Game
 
 	private _preload()
 	{
-		this.load.image('ship', 'data/tex/player-ship.png');
+		this.load.spritesheet('guy', 'data/tex/guy2-sheet.png', 32, 32);
+		this.load.image('background', 'data/tex/background.jpg');
 		this.load.image('tiles', 'data/tex/tiles.png');
-		this.load.image('turret', 'data/tex/gun-turret.png');
+		this.load.image('pebble', 'data/tex/pebble.png');
 		this.load.image('breakable', 'data/tex/breakable.png');
+		this.load.image('rock', 'data/tex/rock.png');
+		this.load.image('hole', 'data/tex/hole.png');
 		this.load.tilemap('map-top-left', 'data/map/top-left.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-top-right', 'data/map/top-right.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-bottom-left', 'data/map/bottom-left.json', null, Phaser.Tilemap.TILED_JSON);
@@ -50,6 +53,8 @@ class ClockwiseGame extends Phaser.Game
 		this.input.keyboard.addKeyCapture([keyboard.LEFT, keyboard.RIGHT, keyboard.UP, keyboard.DOWN, keyboard.SPACEBAR]);
 
 		this.physics.startSystem(Phaser.Physics.ARCADE);
+
+		this.add.sprite(32, 32, 'background');
 
 		this.maps = {};
 		var topLeft = new TileMapEntity('map-top-left', 'tiles');
@@ -77,8 +82,20 @@ class ClockwiseGame extends Phaser.Game
 
 	private _update()
 	{
+		var currentLayers: TileMapLayerEntity[] = [];
 		for (var key in this.maps)
-			this.maps[key].currentLayer.collideWithPlayer(this.player);
+			currentLayers.push(this.maps[key].currentLayer);
+
+		for (var layerIndex = 0; layerIndex < currentLayers.length; ++layerIndex)
+		{
+			var layer = currentLayers[layerIndex];
+			layer.collideWithPlayer(this.player);
+			layer.collideMobileObjectsTogether();
+
+			// Collide layer's mobile objects with other layer (or the same layer, as we're checking walls)
+			for (var otherLayerIndex = 0; otherLayerIndex < currentLayers.length; ++otherLayerIndex)
+				layer.collideMobileObjectsWithLayer(currentLayers[otherLayerIndex]);
+		}
 
 		this.player.update();
 	}

@@ -33,7 +33,7 @@
         {
          "firstgid":1,
          "image":"..\/tex\/tiles.png",
-         "imageheight":64,
+         "imageheight":96,
          "imagewidth":128,
          "margin":0,
          "name":"tiles",
