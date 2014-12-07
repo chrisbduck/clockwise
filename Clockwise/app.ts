@@ -54,6 +54,9 @@ class ClockwiseGame extends Phaser.Game
 
 		this.physics.startSystem(Phaser.Physics.ARCADE);
 
+		// Add game world space for camera shaking
+		this.world.setBounds(-10, -10, this.width + 20, this.height + 20);
+
 		this.add.sprite(32, 32, 'background');
 
 		this.maps = {};

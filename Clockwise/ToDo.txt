@@ -1,12 +1,10 @@
 ﻿Tasks left to do:
 
 - Player anims
-- Holes and filling
 - Doors and keys
 - Levels
 - Diamond
 - Buttons
-- Camera shake on charge hit
 - Limited-time charge
 - Water emitter
 - Rock rolling

@@ -39,6 +39,7 @@ class PlayerEntity extends SpriteEntity
 	static NORMAL_VEL = 200;
 	static CHARGE_VEL = 400;
 	static WALL_BREAK_VEL = 300;
+	static CAMERA_SHAKE_VEL_SQ = 300 * 300;
 	static DIAG_FACTOR = 0.7071;
 	static ACCELERATION = 1500;
 	static DRAG = 1000;
@@ -68,14 +69,18 @@ class PlayerEntity extends SpriteEntity
 		var vel = this.sprite.body.velocity;
 		this.prevVel.setTo(vel.x, vel.y);
 
-		if (this.chargeHaltPending)
+		/*if (this.chargeHaltPending)
 		{
 			// Stop the player's charge with a thump
 			this.chargeHaltPending = false;
 			this.isCharging = false;
 			this.isStunned = true;
 			game.time.events.add(500, () => this.isStunned = false, null).timer.start();
-		}
+			
+			// Shake the camera
+			game.camera.y = 0;
+			game.add.tween(game.camera).to({ x: -10 }, 30, Phaser.Easing.Sinusoidal.InOut, true, 0, 4, true);
+		}*/
 
 		var accel = this.sprite.body.acceleration;
 		accel.x = 0;
@@ -114,8 +119,22 @@ class PlayerEntity extends SpriteEntity
 
 	public haltCharge()
 	{
-		if (this.isCharging)
-			this.chargeHaltPending = true;
+		if (!this.isCharging)
+			return;
+
+		// Stop the player's charge with a thump
+		this.isCharging = false;
+		this.isStunned = true;
+		game.time.events.add(500, () => this.isStunned = false, null).timer.start();
+
+		// Shake the camera, if the speed was high enough
+		if (this.prevVel.getMagnitudeSq() >= PlayerEntity.CAMERA_SHAKE_VEL_SQ)
+		{
+			game.camera.x = 0;
+			game.camera.y = 0;
+			var targetPos: Phaser.Point = this.prevVel.setMagnitude(10);
+			game.add.tween(game.camera).to({ x: targetPos.x, y: targetPos.y }, 30, Phaser.Easing.Sinusoidal.InOut, true, 0, 4, true);
+		}
 	}
 
 	//------------------------------------------------------------------------------
