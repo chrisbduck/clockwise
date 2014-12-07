@@ -56,3 +56,36 @@ class FilledHoleEmitter
 }
 
 //------------------------------------------------------------------------------
+
+class DiamondSparkleEmitter
+{
+	constructor(x: number, y: number)
+	{
+		var emitter = game.add.emitter(x, y);
+		emitter.makeParticles('gleam');
+		emitter.lifespan = 5000;
+		emitter.minParticleSpeed.setTo(-100, -100);
+		emitter.maxParticleSpeed.setTo(100, 0);
+		emitter.minParticleScale = 0.2;
+		emitter.maxParticleScale = 0.6;
+		emitter.gravity = 300;
+		//emitter.autoAlpha = true;
+		//emitter.setAlpha(0, 1, 1000);//, Phaser.Easing.Quadratic.Out(1));
+
+		emitter.start(false, 500, 1);
+
+		this.emitter = emitter;
+	}
+
+	//------------------------------------------------------------------------------
+
+	public setPosition(pos: Phaser.Point)
+	{
+		this.emitter.emitX = pos.x + 16;
+		this.emitter.emitY = pos.y + 16;
+	}
+
+	private emitter: Phaser.Particles.Arcade.Emitter;
+}
+
+//------------------------------------------------------------------------------

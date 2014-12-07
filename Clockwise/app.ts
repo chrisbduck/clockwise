@@ -31,12 +31,16 @@ class ClockwiseGame extends Phaser.Game
 	private _preload()
 	{
 		this.load.spritesheet('guy', 'data/tex/guy2-sheet.png', 32, 32);
+		this.load.spritesheet('door', 'data/tex/door-sheet.png', 32, 32);
+		this.load.spritesheet('gleam', 'data/tex/gleam-sheet.png', 16, 16);
 		this.load.image('background', 'data/tex/background.jpg');
 		this.load.image('tiles', 'data/tex/tiles.png');
 		this.load.image('pebble', 'data/tex/pebble.png');
 		this.load.image('breakable', 'data/tex/breakable.png');
 		this.load.image('rock', 'data/tex/rock.png');
 		this.load.image('hole', 'data/tex/hole.png');
+		this.load.image('key', 'data/tex/key.png');
+		this.load.image('diamond', 'data/tex/diamond.png');
 		this.load.tilemap('map-top-left', 'data/map/top-left.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-top-right', 'data/map/top-right.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-bottom-left', 'data/map/bottom-left.json', null, Phaser.Tilemap.TILED_JSON);

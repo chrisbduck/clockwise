@@ -1,12 +1,11 @@
 ﻿Tasks left to do:
 
-- Doors and keys
 - Level design
-- Diamond
 - Buttons
 - Room visibility
 - Limited-time charge
-- Water emitter
+- Water emitter - attach to *rocks*
 - Rock rolling
 - Hints
 - Make player up/down anims more obvious
+- Brighten key and diamond

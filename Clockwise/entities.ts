@@ -69,6 +69,12 @@ class PlayerEntity extends SpriteEntity
 		body.drag.setTo(PlayerEntity.DRAG, PlayerEntity.DRAG);
 		body.bounce.x = 0.2;
 		body.bounce.y = 0.2;
+
+		this.hasKey = false;
+		this.keyDisplay = null;
+		this.hasDiamond = false;
+		this.diamondDisplay = null;
+		this.sparkleEmitter = null;
 	}
 
 	//------------------------------------------------------------------------------
@@ -77,6 +83,9 @@ class PlayerEntity extends SpriteEntity
 	{
 		var vel = this.sprite.body.velocity;
 		this.prevVel.setTo(vel.x, vel.y);
+
+		if (this.sparkleEmitter != null)
+			this.sparkleEmitter.setPosition(this.sprite.position);
 
 		/*if (this.chargeHaltPending)
 		{
@@ -185,11 +194,60 @@ class PlayerEntity extends SpriteEntity
 
 	//------------------------------------------------------------------------------
 
+	public collectKey(key: Phaser.Sprite)
+	{
+		this.keyDisplay = key;
+		key.position.setTo(0, 32);
+		key.body.velocity.setTo(0, 0);
+		this.hasKey = true;
+	}
+
+	//------------------------------------------------------------------------------
+
+	public useKey()
+	{
+		this.keyDisplay.kill();
+		this.keyDisplay = null;
+		this.hasKey = false;
+	}
+
+	//------------------------------------------------------------------------------
+
+	public openDoor(door: Phaser.Sprite)
+	{
+		if (!this.hasKey)
+			return;
+
+		door.animations.play('open');
+		(<IDoor><any>door).isOpen = true;
+		this.useKey();
+	}
+
+	//------------------------------------------------------------------------------
+
+	public collectDiamond(diamond: Phaser.Sprite)
+	{
+		this.diamondDisplay = diamond;
+		diamond.position.setTo(0, 64);
+		diamond.body.velocity.setTo(0, 0);
+		this.hasDiamond = true;
+
+		if (this.sparkleEmitter == null)
+			this.sparkleEmitter = new DiamondSparkleEmitter(this.sprite.position.x, this.sprite.position.y);
+	}
+
+	//------------------------------------------------------------------------------
+
+	public isCharging: boolean;
+	public hasKey: boolean;
+	public hasDiamond: boolean;
 	private cursorKeys: Phaser.CursorKeys;
 	private prevVel: Phaser.Point;
-	public isCharging: boolean;
 	private chargeHaltPending: boolean;
 	private isStunned: boolean;
+	private keyDisplay: Phaser.Sprite;
+	private diamondDisplay: Phaser.Sprite;
+	private sparkleEmitter: DiamondSparkleEmitter;
 }
 
 //------------------------------------------------------------------------------
@@ -322,34 +380,55 @@ class TileMapLayerEntity extends Entity
 		this.layer = layer;
 		this.entities = [];
 
-		this.breakableWallGroup = game.add.group();
-		this.breakableWallGroup.enableBody = true;
-		this.breakableWallGroup.visible = false;
-
-		this.holeGroup = game.add.group();
-		this.holeGroup.enableBody = true;
-		this.holeGroup.visible = false;
-		//this.holes = [];
-
-		this.rockGroup = game.add.group();
-		this.rockGroup.enableBody = true;
-		this.rockGroup.visible = false;
-		//this.rocks = [];
-
-		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.breakableWallGroup);
+		// Breakable walls
+		this.breakableWallGroup = this.createGroup(TILE_BREAKABLE_WALL, 'breakable');
 		this.breakableWallGroup.forEach(sprite => sprite.body.immovable = true, null);
 
-		layer.map.createFromTiles(TILE_MONSTER, -1, 'hole', layer, this.holeGroup);
+		// Holes
+		this.holeGroup = this.createGroup(TILE_MONSTER, 'hole');
 		this.holeGroup.forEach(sprite =>
 		{
 			sprite.body.immovable = true;
 		}, null);
 
-		layer.map.createFromTiles(TILE_ROCK, -1, 'rock', layer, this.rockGroup);
+		// Rocks
+		this.rockGroup = this.createGroup(TILE_ROCK, 'rock');
 		this.rockGroup.forEach(sprite =>
 		{
 			sprite.body.drag.setTo(ROCK_DRAG, ROCK_DRAG);
 		}, null);
+
+		// Keys
+		this.keyGroup = this.createGroup(TILE_KEY, 'key');
+
+		// Diamonds
+		this.diamondGroup = this.createGroup(TILE_DIAMOND, 'diamond');
+
+		// Doors
+		this.doorGroup = this.createGroup(TILE_DOOR, 'door');
+		this.doorGroup.forEach(doorSprite =>
+		{
+			doorSprite.body.immovable = true;
+			(<IDoor><any>doorSprite).isOpen = false;
+			var anims: Phaser.AnimationManager = doorSprite.animations;
+			anims.add('open', [0, 1, 2, 3, 4], 10, false);
+			anims.add('close', [4, 3, 2, 1, 0], 10, false);
+		}, null);
+
+		// All groups
+		this.allGroups = [this.breakableWallGroup, this.holeGroup, this.rockGroup, this.keyGroup, this.diamondGroup, this.doorGroup];
+
+		this.allGroups.forEach(group => group.visible = false);
+	}
+
+	//------------------------------------------------------------------------------
+
+	private createGroup(tileNum: number, spriteKey: string): Phaser.Group
+	{
+		var group: Phaser.Group = game.add.group();
+		group.enableBody = true;
+		this.layer.map.createFromTiles(tileNum, -1, spriteKey, this.layer, group);
+		return group;
 	}
 
 	//------------------------------------------------------------------------------
@@ -357,12 +436,10 @@ class TileMapLayerEntity extends Entity
 	public start()
 	{
 		this.layer.visible = true;
-		this.layer.debug = true;
+		//this.layer.debug = true;
 		this.layer.map.setLayer(this.layer);
 
-		this.breakableWallGroup.visible = true;
-		this.holeGroup.visible = true;
-		this.rockGroup.visible = true;
+		this.allGroups.forEach(group => group.visible = true);
 	}
 
 	//------------------------------------------------------------------------------
@@ -370,9 +447,7 @@ class TileMapLayerEntity extends Entity
 	public stop()
 	{
 		this.layer.visible = false;
-		this.breakableWallGroup.visible = false;
-		this.holeGroup.visible = false;
-		this.rockGroup.visible = false;
+		this.allGroups.forEach(group => group.visible = false);
 	}
 
 	//------------------------------------------------------------------------------
@@ -384,6 +459,9 @@ class TileMapLayerEntity extends Entity
 		arcadePhysics.collide(player.sprite, this.breakableWallGroup, this.hitBreakableWall, null, this);
 		arcadePhysics.collide(player.sprite, this.holeGroup);
 		arcadePhysics.collide(player.sprite, this.rockGroup);
+		arcadePhysics.collide(player.sprite, this.keyGroup, (playerSprite, key) => player.collectKey(key));
+		arcadePhysics.collide(player.sprite, this.diamondGroup, (playerSprite, diamond) => player.collectDiamond(diamond));
+		arcadePhysics.collide(player.sprite, this.doorGroup, (playerSprite, door) => player.openDoor(door), (playerSprite, door) => !(<IDoor><any>door).isOpen);
 	}
 
 	//------------------------------------------------------------------------------
@@ -404,6 +482,8 @@ class TileMapLayerEntity extends Entity
 		}*/
 		arcadePhysics.collide(this.rockGroup, layerEntity.layer);
 		arcadePhysics.collide(this.rockGroup, layerEntity.breakableWallGroup);
+
+		// Diamonds and keys can't move.
 	}
 
 	//------------------------------------------------------------------------------
@@ -413,6 +493,9 @@ class TileMapLayerEntity extends Entity
 		// Collide the rocks with the holes in the same layer, and the rocks with the other rocks
 		game.physics.arcade.overlap(this.rockGroup, this.holeGroup, this.rockHitHole);
 		game.physics.arcade.collide(this.rockGroup, this.rockGroup);
+
+		// Rocks and such can roll over keys.
+		// Not bothering to check for collisions with diamonds; there'll probably only be one.
 	}
 
 	//------------------------------------------------------------------------------
@@ -462,6 +545,10 @@ class TileMapLayerEntity extends Entity
 	private breakableWallGroup: Phaser.Group;
 	private holeGroup: Phaser.Group;
 	private rockGroup: Phaser.Group;
+	private keyGroup: Phaser.Group;
+	private diamondGroup: Phaser.Group;
+	private doorGroup: Phaser.Group;
+	private allGroups: Phaser.Group[];
 
 	//private holes: HoleEntity[];
 	//private rocks: RockEntity[];
@@ -470,6 +557,11 @@ class TileMapLayerEntity extends Entity
 }
 
 //------------------------------------------------------------------------------
+
+interface IDoor
+{
+	isOpen: boolean;
+}
 
 /*class HoleEntity extends SpriteEntity
 {
