@@ -252,6 +252,16 @@ class PlayerEntity extends SpriteEntity
 
 //------------------------------------------------------------------------------
 
+enum ButtonSide
+{
+	LEFT = 10,
+	RIGHT = 11,
+	TOP = 12,
+	BOTTOM = 13,
+}
+
+//------------------------------------------------------------------------------
+
 var TILE_WALL = 1;
 var TILE_WATER = 2;
 var TILE_UP = 3;
@@ -415,8 +425,16 @@ class TileMapLayerEntity extends Entity
 			anims.add('close', [4, 3, 2, 1, 0], 10, false);
 		}, null);
 
+		// Buttons
+		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
+		this.buttonGroup.forEach(buttonSprite =>
+		{
+			buttonSprite.body.immovable = true;
+			(<IButton><any>buttonSprite).isPressed = false;
+		}, null);
+
 		// All groups
-		this.allGroups = [this.breakableWallGroup, this.holeGroup, this.rockGroup, this.keyGroup, this.diamondGroup, this.doorGroup];
+		this.allGroups = [this.breakableWallGroup, this.holeGroup, this.rockGroup, this.keyGroup, this.diamondGroup, this.doorGroup, this.buttonGroup];
 
 		this.allGroups.forEach(group => group.visible = false);
 	}
@@ -462,6 +480,7 @@ class TileMapLayerEntity extends Entity
 		arcadePhysics.collide(player.sprite, this.keyGroup, (playerSprite, key) => player.collectKey(key));
 		arcadePhysics.collide(player.sprite, this.diamondGroup, (playerSprite, diamond) => player.collectDiamond(diamond));
 		arcadePhysics.collide(player.sprite, this.doorGroup, (playerSprite, door) => player.openDoor(door), (playerSprite, door) => !(<IDoor><any>door).isOpen);
+		arcadePhysics.overlap(player.sprite, this.buttonGroup, (playerSprite, button) => this.pressButton(button));
 	}
 
 	//------------------------------------------------------------------------------
@@ -483,7 +502,11 @@ class TileMapLayerEntity extends Entity
 		arcadePhysics.collide(this.rockGroup, layerEntity.layer);
 		arcadePhysics.collide(this.rockGroup, layerEntity.breakableWallGroup);
 
-		// Diamonds and keys can't move.
+		arcadePhysics.collide(this.keyGroup, layerEntity.layer);
+		arcadePhysics.collide(this.keyGroup, layerEntity.breakableWallGroup);
+
+		arcadePhysics.collide(this.diamondGroup, layerEntity.layer);
+		arcadePhysics.collide(this.diamondGroup, layerEntity.breakableWallGroup);
 	}
 
 	//------------------------------------------------------------------------------
@@ -539,6 +562,69 @@ class TileMapLayerEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
+	public pressButton(button: Phaser.Sprite)
+	{
+		// Check if already pressed
+		var iButton: IButton = (<IButton><any>button);
+		if (iButton.isPressed)
+			return;
+
+		// Change gravity
+		var BUTTON_GRAVITY = 300;
+		var side = this.getButtonSide(button);
+		var gravityX: number = (side == ButtonSide.LEFT) ? -BUTTON_GRAVITY : (side == ButtonSide.RIGHT ? BUTTON_GRAVITY : 0);
+		var gravityY: number = (side == ButtonSide.TOP) ? -BUTTON_GRAVITY : (side == ButtonSide.BOTTOM ? BUTTON_GRAVITY : 0);
+
+		var gravityGroups = [this.rockGroup, this.keyGroup, this.diamondGroup];
+		gravityGroups.forEach(group =>
+		{
+			group.forEach(sprite =>
+			{
+				sprite.body.gravity.setTo(gravityX, gravityY);
+				sprite.body.enableGravity = true;
+			}, null);
+		});
+
+		// Unpress all buttons
+		this.buttonGroup.forEach(otherButton =>
+		{
+			otherButton.frame = 0;
+			(<IButton><any>otherButton).isPressed = false;
+		}, null);
+
+		// Set this one as pressed
+		button.frame = 1;
+		iButton.isPressed = true;
+	}
+
+	//------------------------------------------------------------------------------
+
+	private getButtonSide(button: Phaser.Sprite): ButtonSide
+	{
+		var buttonTilePos: Phaser.Point = new Phaser.Point();
+		this.layer.getTileXY(button.position.x, button.position.y, buttonTilePos);
+		console.log('button tile pos', buttonTilePos);
+
+		// Get a quadrant
+		buttonTilePos.x = buttonTilePos.x % (NUM_TILES / 2);
+		buttonTilePos.y = buttonTilePos.y % (NUM_TILES / 2);
+
+		var offsetX: number = Math.abs(NUM_TILES / 4 - buttonTilePos.x);
+		var offsetY: number = Math.abs(NUM_TILES / 4 - buttonTilePos.y);
+		if (offsetX > offsetY)
+		{
+			var leftSide: boolean = buttonTilePos.x < NUM_TILES / 4;
+			console.log('left', leftSide);
+			return leftSide ? ButtonSide.LEFT : ButtonSide.RIGHT;
+		}
+
+		var topSide: boolean = buttonTilePos.y < NUM_TILES / 4;
+		console.log('top', topSide);
+		return topSide ? ButtonSide.TOP : ButtonSide.BOTTOM;
+	}
+
+	//------------------------------------------------------------------------------
+
 	private tileMap: TileMapEntity;
 	private layer: Phaser.TilemapLayer;
 
@@ -548,6 +634,7 @@ class TileMapLayerEntity extends Entity
 	private keyGroup: Phaser.Group;
 	private diamondGroup: Phaser.Group;
 	private doorGroup: Phaser.Group;
+	private buttonGroup: Phaser.Group;
 	private allGroups: Phaser.Group[];
 
 	//private holes: HoleEntity[];
@@ -561,6 +648,11 @@ class TileMapLayerEntity extends Entity
 interface IDoor
 {
 	isOpen: boolean;
+}
+
+interface IButton
+{
+	isPressed: boolean;
 }
 
 /*class HoleEntity extends SpriteEntity

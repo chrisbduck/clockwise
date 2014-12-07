@@ -33,6 +33,7 @@ class ClockwiseGame extends Phaser.Game
 		this.load.spritesheet('guy', 'data/tex/guy2-sheet.png', 32, 32);
 		this.load.spritesheet('door', 'data/tex/door-sheet.png', 32, 32);
 		this.load.spritesheet('gleam', 'data/tex/gleam-sheet.png', 16, 16);
+		this.load.spritesheet('button', 'data/tex/button-sheet.png', 32, 32);
 		this.load.image('background', 'data/tex/background.jpg');
 		this.load.image('tiles', 'data/tex/tiles.png');
 		this.load.image('pebble', 'data/tex/pebble.png');
