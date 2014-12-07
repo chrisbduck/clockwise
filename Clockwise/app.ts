@@ -45,6 +45,10 @@ class ClockwiseGame extends Phaser.Game
 
 	private _create()
 	{
+		// Stop various key presses from passing through to the browser
+		var keyboard = Phaser.Keyboard;
+		this.input.keyboard.addKeyCapture([keyboard.LEFT, keyboard.RIGHT, keyboard.UP, keyboard.DOWN, keyboard.SPACEBAR]);
+
 		this.physics.startSystem(Phaser.Physics.ARCADE);
 
 		this.maps = {};

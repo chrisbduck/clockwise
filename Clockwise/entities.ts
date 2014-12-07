@@ -32,12 +32,26 @@ class SpriteEntity extends Entity
 
 class PlayerEntity extends SpriteEntity
 {
+	static NORMAL_VEL = 200;
+	static CHARGE_VEL = 400;
+	static WALL_BREAK_VEL = 300;
+	static DIAG_FACTOR = 0.7071;
+	static ACCELERATION = 1500;
+	static DRAG = 1000;
+
 	constructor(x: number, y: number)
 	{
 		super(x, y, 'ship');
 		game.physics.arcade.enable(this.sprite);
 
 		this.cursorKeys = game.input.keyboard.createCursorKeys();
+		this.isCharging = false;
+		this.isStunned = false;
+		this.chargeHaltPending = false;
+		this.prevVel = new Phaser.Point(0, 0);
+
+		this.sprite.body.maxVelocity.setTo(PlayerEntity.NORMAL_VEL, PlayerEntity.NORMAL_VEL);
+		this.sprite.body.drag.setTo(PlayerEntity.DRAG, PlayerEntity.DRAG);
 	}
 
 	//------------------------------------------------------------------------------
@@ -45,23 +59,80 @@ class PlayerEntity extends SpriteEntity
 	public update()
 	{
 		var vel = this.sprite.body.velocity;
+		this.prevVel.setTo(vel.x, vel.y);
 
-		vel.x = 0;
-		if (this.cursorKeys.right.isDown)
-			vel.x = 300;
-		else if (this.cursorKeys.left.isDown)
-			vel.x = -300;
+		if (this.chargeHaltPending)
+		{
+			// Stop the player's charge with a thump
+			this.chargeHaltPending = false;
+			this.isCharging = false;
+			this.isStunned = true;
+			game.time.events.add(500, () => this.isStunned = false, null).timer.start();
+		}
 
-		vel.y = 0;
-		if (this.cursorKeys.up.isDown)
-			vel.y = -300;
-		else if (this.cursorKeys.down.isDown)
-			vel.y = 300;
+		var accel = this.sprite.body.acceleration;
+		accel.x = 0;
+		accel.y = 0;
+		if (!this.isStunned)
+		{
+			this.isCharging = !!game.input.keyboard.isDown(Phaser.Keyboard.SHIFT);		// make sure not down gives false
+
+			if (this.cursorKeys.right.isDown)
+				accel.x = PlayerEntity.ACCELERATION;
+			else if (this.cursorKeys.left.isDown)
+				accel.x = -PlayerEntity.ACCELERATION;
+
+			if (this.cursorKeys.up.isDown)
+				accel.y = -PlayerEntity.ACCELERATION;
+			else if (this.cursorKeys.down.isDown)
+				accel.y = PlayerEntity.ACCELERATION;
+
+			// Diagonal scaling
+			var diagonal = accel.x !== 0 && accel.y !== 0;
+			if (diagonal)
+			{
+				accel.x *= PlayerEntity.DIAG_FACTOR;
+				accel.y *= PlayerEntity.DIAG_FACTOR;
+			}
+
+			// Set the maximum velocity
+			var maxVel: number = this.isCharging ? PlayerEntity.CHARGE_VEL : PlayerEntity.NORMAL_VEL;
+			if (diagonal)
+				maxVel *= PlayerEntity.DIAG_FACTOR;
+			this.sprite.body.maxVelocity.setTo(maxVel, maxVel);
+		}
+	}
+
+	//------------------------------------------------------------------------------
+
+	public haltCharge()
+	{
+		if (this.isCharging)
+			this.chargeHaltPending = true;
+	}
+
+	//------------------------------------------------------------------------------
+
+	public canBreak(sprite: Phaser.Sprite)
+	{
+		// Can only break if charging
+		if (!this.isCharging)
+			return;
+
+		// Can only break if (player vel) dot (normalized offset of sprite from player) is at least a given value
+		var playerVel: Phaser.Point = this.prevVel;
+		var spriteOffset: Phaser.Point = Phaser.Point.subtract(sprite.position, this.sprite.position).normalize();
+		var velInDir: number = playerVel.dot(spriteOffset);
+		return velInDir >= PlayerEntity.WALL_BREAK_VEL;
 	}
 
 	//------------------------------------------------------------------------------
 
 	private cursorKeys: Phaser.CursorKeys;
+	private prevVel: Phaser.Point;
+	public isCharging: boolean;
+	private chargeHaltPending: boolean;
+	private isStunned: boolean;
 }
 
 //------------------------------------------------------------------------------
@@ -184,7 +255,8 @@ class TileMapLayerEntity extends Entity
 		this.group.enableBody = true;
 		this.group.visible = false;
 
-		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.group);
+		layer.map.createFromTiles(TILE_BREAKABLE_WALL, -1, 'breakable', layer, this.group, { 'body.immovable': true });
+		this.group.forEach(sprite => sprite.body.immovable = true, null);
 	}
 
 	//------------------------------------------------------------------------------
@@ -211,15 +283,27 @@ class TileMapLayerEntity extends Entity
 	public collideWithPlayer(player: PlayerEntity)
 	{
 		var arcadePhysics = game.physics.arcade;
-		arcadePhysics.collide(player.sprite, this.layer);
+		arcadePhysics.collide(player.sprite, this.layer, this.hitUnbreakableWall, null, this);
 
-		arcadePhysics.overlap(player.sprite, this.group, this.breakWall, null, this);
+		arcadePhysics.collide(player.sprite, this.group, this.hitBreakableWall, null, this);
 	}
 
 	//------------------------------------------------------------------------------
 
-	private breakWall(playerSprite: Phaser.Sprite, wall: Phaser.Sprite)
+	private hitUnbreakableWall(playerSprite: Phaser.Sprite, wall: Phaser.Sprite)
 	{
+		game.player.haltCharge();
+	}
+
+	//------------------------------------------------------------------------------
+
+	private hitBreakableWall(playerSprite: Phaser.Sprite, wall: Phaser.Sprite)
+	{
+		var breakWall = game.player.canBreak(wall);
+		game.player.haltCharge();
+		if (!breakWall)
+			return;
+
 		new BreakableWallEmitter(wall.x, wall.y);
 		wall.kill();
 	}

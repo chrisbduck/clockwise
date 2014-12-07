@@ -19,6 +19,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="app.css" />
+    <Content Include="data\tex\breakable.png" />
     <Content Include="data\tex\gun-turret.png" />
     <Content Include="data\tex\player-ship.png" />
     <Content Include="data\tex\star.png" />
@@ -48,6 +49,7 @@
     <Content Include="data\map\tiles.json" />
     <Content Include="data\map\top-left.json" />
     <Content Include="data\map\top-right.json" />
+    <Content Include="assets\breakable.xcf" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>
