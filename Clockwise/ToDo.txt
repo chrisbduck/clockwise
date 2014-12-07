@@ -1,10 +1,12 @@
 ﻿Tasks left to do:
 
-- Player anims
 - Doors and keys
-- Levels
+- Level design
 - Diamond
 - Buttons
+- Room visibility
 - Limited-time charge
 - Water emitter
 - Rock rolling
+- Hints
+- Make player up/down anims more obvious

@@ -43,6 +43,8 @@ class PlayerEntity extends SpriteEntity
 	static DIAG_FACTOR = 0.7071;
 	static ACCELERATION = 1500;
 	static DRAG = 1000;
+	static WALK_ANIM_SPEED = 10;
+	static CHARGE_ANIM_SPEED = 5;
 
 	constructor(x: number, y: number)
 	{
@@ -54,6 +56,13 @@ class PlayerEntity extends SpriteEntity
 		this.isStunned = false;
 		this.chargeHaltPending = false;
 		this.prevVel = new Phaser.Point(0, 0);
+
+		var anims = this.sprite.animations;
+		var animSpeed = PlayerEntity.WALK_ANIM_SPEED;
+		anims.add('down', [0, 1, 2, 3], animSpeed, true);
+		anims.add('up', [4, 5, 6, 7], animSpeed, true);
+		anims.add('right', [8, 9, 10, 11], animSpeed, true);
+		anims.add('left', [12, 13, 14, 15], animSpeed, true);
 
 		var body: Phaser.Physics.Arcade.Body = this.sprite.body;
 		body.maxVelocity.setTo(PlayerEntity.NORMAL_VEL, PlayerEntity.NORMAL_VEL);
@@ -87,17 +96,40 @@ class PlayerEntity extends SpriteEntity
 		accel.y = 0;
 		if (!this.isStunned)
 		{
-			this.isCharging = !!game.input.keyboard.isDown(Phaser.Keyboard.SHIFT);		// make sure not down gives false
+			this.isCharging = !!game.input.keyboard.isDown(Phaser.Keyboard.SHIFT);		// make sure "not down" gives false
 
+			var animKey = null;
+
+			// Check left/right
 			if (this.cursorKeys.right.isDown)
+			{
 				accel.x = PlayerEntity.ACCELERATION;
+				animKey = 'right';
+			}
 			else if (this.cursorKeys.left.isDown)
+			{
 				accel.x = -PlayerEntity.ACCELERATION;
+				animKey = 'left';
+			}
 
+			// Check up/down second because its animation takes precedence
 			if (this.cursorKeys.up.isDown)
+			{
 				accel.y = -PlayerEntity.ACCELERATION;
+				animKey = 'up';
+			}
 			else if (this.cursorKeys.down.isDown)
+			{
 				accel.y = PlayerEntity.ACCELERATION;
+				animKey = 'down';
+			}
+
+			// Play animation
+			var anims = this.sprite.animations;
+			if (animKey === null)
+				anims.stop();
+			else
+				anims.play(animKey, this.isCharging ? PlayerEntity.CHARGE_ANIM_SPEED : PlayerEntity.WALK_ANIM_SPEED);
 
 			// Diagonal scaling
 			var diagonal = accel.x !== 0 && accel.y !== 0;
@@ -130,9 +162,8 @@ class PlayerEntity extends SpriteEntity
 		// Shake the camera, if the speed was high enough
 		if (this.prevVel.getMagnitudeSq() >= PlayerEntity.CAMERA_SHAKE_VEL_SQ)
 		{
-			game.camera.x = 0;
-			game.camera.y = 0;
-			var targetPos: Phaser.Point = this.prevVel.setMagnitude(10);
+			game.camera.setPosition(0, 0);
+			var targetPos: Phaser.Point = new Phaser.Point(this.prevVel.x, this.prevVel.y).setMagnitude(10);
 			game.add.tween(game.camera).to({ x: targetPos.x, y: targetPos.y }, 30, Phaser.Easing.Sinusoidal.InOut, true, 0, 4, true);
 		}
 	}
