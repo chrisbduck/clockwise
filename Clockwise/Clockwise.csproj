@@ -26,15 +26,14 @@
     <Content Include="data\tex\door-sheet.png" />
     <Content Include="data\tex\drop.png" />
     <Content Include="data\tex\gleam-sheet.png" />
-    <Content Include="data\tex\gun-turret.png" />
     <Content Include="data\tex\guy2-sheet.png" />
     <Content Include="data\tex\hole.png" />
     <Content Include="data\tex\key.png" />
     <Content Include="data\tex\pebble.png" />
-    <Content Include="data\tex\player-ship.png" />
     <Content Include="data\tex\rock.png" />
-    <Content Include="data\tex\star.png" />
     <Content Include="data\tex\tiles.png" />
+    <Content Include="data\tex\wall.png" />
+    <Content Include="data\tex\water.png" />
     <Content Include="index.html" />
     <Content Include="phaser\phaser.js" />
     <Content Include="phaser\phaser.min.js" />
@@ -78,6 +77,8 @@
     <Content Include="assets\key.xcf" />
     <Content Include="assets\pebble.xcf" />
     <Content Include="assets\rock.xcf" />
+    <Content Include="assets\wall.xcf" />
+    <Content Include="assets\water.xcf" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>

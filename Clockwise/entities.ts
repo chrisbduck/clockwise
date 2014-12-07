@@ -69,6 +69,8 @@ class PlayerEntity extends SpriteEntity
 		body.drag.setTo(PlayerEntity.DRAG, PlayerEntity.DRAG);
 		body.bounce.x = 0.2;
 		body.bounce.y = 0.2;
+		body.width = 18;
+		body.offset.x = 7;
 
 		this.hasKey = false;
 		this.keyDisplay = null;
@@ -198,8 +200,17 @@ class PlayerEntity extends SpriteEntity
 	{
 		this.keyDisplay = key;
 		key.position.setTo(0, 32);
-		key.body.velocity.setTo(0, 0);
+		this.collectSprite(key);
 		this.hasKey = true;
+	}
+
+	//------------------------------------------------------------------------------
+
+	private collectSprite(sprite: Phaser.Sprite)
+	{
+		sprite.body.velocity.setTo(0, 0);
+		sprite.body.gravity.setTo(0, 0);
+		PlayerEntity.changeSpriteGroup(sprite, game.world);
 	}
 
 	//------------------------------------------------------------------------------
@@ -229,11 +240,20 @@ class PlayerEntity extends SpriteEntity
 	{
 		this.diamondDisplay = diamond;
 		diamond.position.setTo(0, 64);
-		diamond.body.velocity.setTo(0, 0);
+		this.collectSprite(diamond);
 		this.hasDiamond = true;
 
 		if (this.sparkleEmitter == null)
 			this.sparkleEmitter = new DiamondSparkleEmitter(this.sprite.position.x, this.sprite.position.y);
+	}
+
+	//------------------------------------------------------------------------------
+
+	public static changeSpriteGroup(sprite: Phaser.Sprite, newGroup: Phaser.Group)
+	{
+		sprite.parent.removeChild(sprite);
+		sprite.parent = newGroup;
+		newGroup.addChild(sprite);
 	}
 
 	//------------------------------------------------------------------------------
@@ -427,14 +447,23 @@ class TileMapLayerEntity extends Entity
 
 		// Buttons
 		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
-		this.buttonGroup.forEach(buttonSprite =>
-		{
-			buttonSprite.body.immovable = true;
-			(<IButton><any>buttonSprite).isPressed = false;
-		}, null);
+		this.buttonGroup.forEach(buttonSprite => this.initButton(buttonSprite), null);
+
+		// Water
+		this.waterGroup = this.createGroup(TILE_WATER, 'water');
+		this.waterGroup.forEach(water => water.body.immovable = true, null);
 
 		// All groups
-		this.allGroups = [this.breakableWallGroup, this.holeGroup, this.rockGroup, this.keyGroup, this.diamondGroup, this.doorGroup, this.buttonGroup];
+		this.allGroups = [
+			this.breakableWallGroup,
+			this.holeGroup,
+			this.rockGroup,
+			this.keyGroup,
+			this.diamondGroup,
+			this.doorGroup,
+			this.buttonGroup,
+			this.waterGroup
+		];
 
 		this.allGroups.forEach(group => group.visible = false);
 	}
@@ -481,6 +510,7 @@ class TileMapLayerEntity extends Entity
 		arcadePhysics.collide(player.sprite, this.diamondGroup, (playerSprite, diamond) => player.collectDiamond(diamond));
 		arcadePhysics.collide(player.sprite, this.doorGroup, (playerSprite, door) => player.openDoor(door), (playerSprite, door) => !(<IDoor><any>door).isOpen);
 		arcadePhysics.overlap(player.sprite, this.buttonGroup, (playerSprite, button) => this.pressButton(button));
+		arcadePhysics.collide(player.sprite, this.waterGroup);
 	}
 
 	//------------------------------------------------------------------------------
@@ -586,15 +616,10 @@ class TileMapLayerEntity extends Entity
 		});
 
 		// Unpress all buttons
-		this.buttonGroup.forEach(otherButton =>
-		{
-			otherButton.frame = 0;
-			(<IButton><any>otherButton).isPressed = false;
-		}, null);
+		this.buttonGroup.forEach(otherButton => this.setButtonPressed(otherButton, false), null);
 
 		// Set this one as pressed
-		button.frame = 1;
-		iButton.isPressed = true;
+		this.setButtonPressed(button, true);
 	}
 
 	//------------------------------------------------------------------------------
@@ -603,7 +628,6 @@ class TileMapLayerEntity extends Entity
 	{
 		var buttonTilePos: Phaser.Point = new Phaser.Point();
 		this.layer.getTileXY(button.position.x, button.position.y, buttonTilePos);
-		console.log('button tile pos', buttonTilePos);
 
 		// Get a quadrant
 		buttonTilePos.x = buttonTilePos.x % (NUM_TILES / 2);
@@ -614,13 +638,70 @@ class TileMapLayerEntity extends Entity
 		if (offsetX > offsetY)
 		{
 			var leftSide: boolean = buttonTilePos.x < NUM_TILES / 4;
-			console.log('left', leftSide);
 			return leftSide ? ButtonSide.LEFT : ButtonSide.RIGHT;
 		}
 
 		var topSide: boolean = buttonTilePos.y < NUM_TILES / 4;
-		console.log('top', topSide);
 		return topSide ? ButtonSide.TOP : ButtonSide.BOTTOM;
+	}
+
+	//------------------------------------------------------------------------------
+
+	private getButtonRotationDeg(button: Phaser.Sprite): number
+	{
+		var side = this.getButtonSide(button);
+		switch (side)
+		{
+			case ButtonSide.TOP:	return 90;
+			case ButtonSide.RIGHT:	return 180;
+			case ButtonSide.BOTTOM: return 270;
+			default:				return 0;
+		}
+	}
+
+	//------------------------------------------------------------------------------
+
+	private initButton(button: Phaser.Sprite)
+	{
+		button.body.immovable = true;
+		this.setButtonPressed(button, false);
+	}
+
+	//------------------------------------------------------------------------------
+
+	private setButtonPressed(button: Phaser.Sprite, pressed: boolean)
+	{
+		var body = button.body;
+		body.width = 32;
+		body.height = 32;
+		body.offset.x = 0;
+		body.offset.y = 0;
+
+		// Set rotation (sort of - kludged)
+		var side = this.getButtonSide(button);
+		switch (side)
+		{
+			case ButtonSide.LEFT:
+				button.frame = pressed ? 1 : 0;
+				body.width = 14;
+				break;
+			case ButtonSide.TOP:
+				button.frame = pressed ? 3 : 2;
+				body.height = 14;
+				break;
+			case ButtonSide.RIGHT:
+				button.frame = pressed ? 5 : 4;
+				body.width = 14;
+				body.offset.x = 18;
+				break;
+			case ButtonSide.BOTTOM:
+				button.frame = pressed ? 7 : 6;
+				body.height = 14;
+				body.offset.y = 18;
+				break;
+		}
+
+		(<IButton><any>button).isPressed = pressed;
 	}
 
 	//------------------------------------------------------------------------------
@@ -635,6 +716,7 @@ class TileMapLayerEntity extends Entity
 	private diamondGroup: Phaser.Group;
 	private doorGroup: Phaser.Group;
 	private buttonGroup: Phaser.Group;
+	private waterGroup: Phaser.Group;
 	private allGroups: Phaser.Group[];
 
 	//private holes: HoleEntity[];

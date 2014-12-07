@@ -42,6 +42,7 @@ class ClockwiseGame extends Phaser.Game
 		this.load.image('hole', 'data/tex/hole.png');
 		this.load.image('key', 'data/tex/key.png');
 		this.load.image('diamond', 'data/tex/diamond.png');
+		this.load.image('water', 'data/tex/water.png');
 		this.load.tilemap('map-top-left', 'data/map/top-left.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-top-right', 'data/map/top-right.json', null, Phaser.Tilemap.TILED_JSON);
 		this.load.tilemap('map-bottom-left', 'data/map/bottom-left.json', null, Phaser.Tilemap.TILED_JSON);
