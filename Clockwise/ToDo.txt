@@ -1,11 +1,9 @@
 ﻿Tasks left to do:
 
 - Level design
-- Buttons
 - Room visibility
 - Limited-time charge
 - Water emitter - attach to *rocks*
 - Rock rolling
 - Hints
 - Make player up/down anims more obvious
-- Brighten key and diamond

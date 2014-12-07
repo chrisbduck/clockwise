@@ -66,18 +66,22 @@ class ClockwiseGame extends Phaser.Game
 		this.add.sprite(32, 32, 'background');
 
 		this.maps = {};
-		var topLeft = new TileMapEntity('map-top-left', 'tiles');
-		var topRight = new TileMapEntity('map-top-right', 'tiles');
-		var bottomRight = new TileMapEntity('map-bottom-right', 'tiles');
-		var bottomLeft = new TileMapEntity('map-bottom-left', 'tiles');
-		topLeft.linkedMap = bottomRight;
-		topRight.linkedMap = bottomLeft;
-		bottomRight.linkedMap = topLeft;
-		bottomLeft.linkedMap = topRight;
+		var HALF_NUM_TILES = NUM_TILES / 2;
+		var topLeft = new TileMapEntity('map-top-left', 'tiles', 0, 0, false);
+		var topRight = new TileMapEntity('map-top-right', 'tiles', HALF_NUM_TILES, 0);
+		var bottomRight = new TileMapEntity('map-bottom-right', 'tiles', HALF_NUM_TILES, HALF_NUM_TILES);
+		var bottomLeft = new TileMapEntity('map-bottom-left', 'tiles', 0, HALF_NUM_TILES);
+		topLeft.setRelatedMaps(topRight, bottomRight, bottomLeft);
+		topRight.setRelatedMaps(bottomRight, bottomLeft, topLeft);
+		bottomRight.setRelatedMaps(bottomLeft, topLeft, topRight);
+		bottomLeft.setRelatedMaps(topLeft, topRight, bottomRight);
 		this.maps['top-left'] = topLeft;
 		this.maps['top-right'] = topRight;
 		this.maps['bottom-right'] = bottomRight;
 		this.maps['bottom-left'] = bottomLeft;
+		// Workaround :)
+		bottomRight.ignoreFirstSwitch = true;
+		bottomLeft.ignoreFirstSwitch = true;
 
 		this.player = new PlayerEntity(32, 32);
 
@@ -93,7 +97,11 @@ class ClockwiseGame extends Phaser.Game
 	{
 		var currentLayers: TileMapLayerEntity[] = [];
 		for (var key in this.maps)
-			currentLayers.push(this.maps[key].currentLayer);
+		{
+			var map = this.maps[key];
+			map.update();
+			currentLayers.push(map.currentLayer);
+		}
 
 		for (var layerIndex = 0; layerIndex < currentLayers.length; ++layerIndex)
 		{

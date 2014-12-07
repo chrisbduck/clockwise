@@ -71,6 +71,9 @@ class PlayerEntity extends SpriteEntity
 		body.bounce.y = 0.2;
 		body.width = 18;
 		body.offset.x = 7;
+		// To decrease vertical collision annoyance
+		(<any>body).height = 24;		// syntax is fine; spurious error from defs
+		body.offset.y = 4;
 
 		this.hasKey = false;
 		this.keyDisplay = null;
@@ -88,19 +91,6 @@ class PlayerEntity extends SpriteEntity
 
 		if (this.sparkleEmitter != null)
 			this.sparkleEmitter.setPosition(this.sprite.position);
-
-		/*if (this.chargeHaltPending)
-		{
-			// Stop the player's charge with a thump
-			this.chargeHaltPending = false;
-			this.isCharging = false;
-			this.isStunned = true;
-			game.time.events.add(500, () => this.isStunned = false, null).timer.start();
-			
-			// Shake the camera
-			game.camera.y = 0;
-			game.add.tween(game.camera).to({ x: -10 }, 30, Phaser.Easing.Sinusoidal.InOut, true, 0, 4, true);
-		}*/
 
 		var accel = this.sprite.body.acceleration;
 		accel.x = 0;
@@ -224,14 +214,32 @@ class PlayerEntity extends SpriteEntity
 
 	//------------------------------------------------------------------------------
 
-	public openDoor(door: Phaser.Sprite)
+	public static setDoorOpen(door: Phaser.Sprite)
 	{
-		if (!this.hasKey)
-			return;
-
 		door.animations.play('open');
 		(<IDoor><any>door).isOpen = true;
-		this.useKey();
+	}
+
+	//------------------------------------------------------------------------------
+
+	public static setDoorClosed(door: Phaser.Sprite)
+	{
+		door.animations.play('close');
+		(<IDoor><any>door).isOpen = false;
+	}
+
+	//------------------------------------------------------------------------------
+
+	public openDoor(door: Phaser.Sprite, doorTileType: number): boolean
+	{
+		// Can only open up doors with a key, or down doors with the diamond
+		if ((doorTileType === TILE_DOOR_UP && !this.hasKey) || (doorTileType === TILE_DOOR_DOWN && !this.hasDiamond))
+			return false;
+
+		PlayerEntity.setDoorOpen(door);
+		if (doorTileType == TILE_DOOR_UP)
+			this.useKey();
+		return true;
 	}
 
 	//------------------------------------------------------------------------------
@@ -284,8 +292,8 @@ enum ButtonSide
 
 var TILE_WALL = 1;
 var TILE_WATER = 2;
-var TILE_UP = 3;
-var TILE_DOWN = 4;
+var TILE_DOOR_UP = 3;
+var TILE_DOOR_DOWN = 4;
 var TILE_BREAKABLE_WALL = 5;
 var TILE_MONSTER = 6;
 var TILE_HOLE = 6;
@@ -297,7 +305,7 @@ var TILE_BUTTON = 11;
 
 class TileMapEntity extends Entity
 {
-	constructor(tilemap: string, tileset: string)
+	constructor(tilemap: string, tileset: string, tileX: number, tileY: number, inShadow: boolean = true)
 	{
 		super();
 
@@ -313,9 +321,23 @@ class TileMapEntity extends Entity
 			this.layers.push(layer);
 		}
 
+		var shadowSize = TILE_SIZE * (NUM_TILES / 2 - 1);
+		var shadowX = tileX;
+		var shadowY = tileY;
+		if (shadowX === 0)
+			shadowX = 1;
+		if (shadowY === 0)
+			shadowY = 1;
+		this.shadowBmp = game.add.bitmapData(shadowSize, shadowSize);
+		this.shadowImg = game.add.image(shadowX * TILE_SIZE, shadowY * TILE_SIZE, this.shadowBmp);
+		this.shadowImg.blendMode = PIXI.blendModes.MULTIPLY;
+		this.shadowAlpha = inShadow ? 0 : 1;
+		this.updateShadow();
+
 		this.currentLayer = null;
 
 		this.haveGoneUp = false;
+		this.ignoreFirstSwitch = false;
 
 		this.switchTo(0);
 	}
@@ -324,12 +346,33 @@ class TileMapEntity extends Entity
 
 	public update()
 	{
+		// Update the shadow brightness
+		if (this.shadowAlpha !== this.shadowPrevAlpha)
+			this.updateShadow();
+	}
+
+	//------------------------------------------------------------------------------
+
+	private updateShadow()
+	{
+		var alpha = Math.ceil(this.shadowAlpha * 255);
+		this.shadowBmp.context.fillStyle = 'rgb(' + alpha + ', ' + alpha + ', ' + alpha + ')';
+		this.shadowBmp.context.fillRect(0, 0, this.shadowBmp.width, this.shadowBmp.height);
+		this.shadowBmp.dirty = true;
+
+		this.shadowPrevAlpha = this.shadowAlpha;
 	}
 
 	//------------------------------------------------------------------------------
 
 	private adjustLayer(adjust: number)
 	{
+		if (this.ignoreFirstSwitch)
+		{
+			this.ignoreFirstSwitch = false;
+			return;
+		}
+
 		if (adjust > 0)
 		{
 			this.haveGoneUp = false;
@@ -344,22 +387,28 @@ class TileMapEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
-	private triggerLevelChange(adjust: number)
+	public triggerLevelChange(adjust: number)
 	{
 		if (adjust > 0)
 		{
+			console.log(this.name, "up");
 			if (!this.haveGoneUp)
 			{
 				this.haveGoneUp = true;
 				this.linkedMap.adjustLayer(adjust);
+				this.nextMap.fadeIn(TILE_DOOR_UP);
+				this.prevMap.fadeOut(TILE_DOOR_UP);
 			}
 		}
 		else
 		{
+			console.log(this.name, "down");
 			if (this.haveGoneUp)
 			{
 				this.haveGoneUp = false;
 				this.linkedMap.adjustLayer(adjust);
+				this.nextMap.fadeOut(TILE_DOOR_DOWN);
+				this.prevMap.fadeIn(TILE_DOOR_DOWN);
 			}
 		}
 	}
@@ -379,21 +428,55 @@ class TileMapEntity extends Entity
 
 		this.tileMap.setCollision(1);
 
-		this.tileMap.setTileIndexCallback(TILE_UP, () => this.triggerLevelChange(+1), null);
-		this.tileMap.setTileIndexCallback(TILE_DOWN, () => this.triggerLevelChange(-1), null);
+		//this.tileMap.setTileIndexCallback(TILE_DOOR_UP, () => this.triggerLevelChange(+1), null);
+		//this.tileMap.setTileIndexCallback(TILE_DOOR_DOWN, () => this.triggerLevelChange(-1), null);
+	}
+
+	//------------------------------------------------------------------------------
+
+	public setRelatedMaps(next: TileMapEntity, linked: TileMapEntity, prev: TileMapEntity)
+	{
+		this.nextMap = next;
+		this.linkedMap = linked;
+		this.prevMap = prev;
+	}
+
+	//------------------------------------------------------------------------------
+
+	private fadeOut(closeDoorType: number)
+	{
+		game.add.tween(this).to({ shadowAlpha: 0 }, 3000, Phaser.Easing.Quadratic.Out, true);
+		this.currentLayer.adjustDoors(closeDoorType);
+	}
+
+	//------------------------------------------------------------------------------
+
+	private fadeIn(closeDoorType: number)
+	{
+		game.add.tween(this).to({ shadowAlpha: 1 }, 1500, Phaser.Easing.Quadratic.In, true);
+		this.currentLayer.adjustDoors(closeDoorType);
 	}
 
 	//------------------------------------------------------------------------------
 
 	public name: string;
 	public currentLayer: TileMapLayerEntity;
-	public linkedMap: TileMapEntity;
+
+	private linkedMap: TileMapEntity;
+	private prevMap: TileMapEntity;
+	private nextMap: TileMapEntity;
 
 	private tileMap: Phaser.Tilemap;
 	private layers: TileMapLayerEntity[];
 	private currentLayerIndex: number;
 	private triggerCallback: () => void;
 	private haveGoneUp: boolean;
+	public ignoreFirstSwitch: boolean;
+
+	private shadowBmp: Phaser.BitmapData;
+	private shadowImg: Phaser.Image;
+	private shadowAlpha: number;
+	private shadowPrevAlpha: number;
 }
 
 //------------------------------------------------------------------------------
@@ -408,7 +491,6 @@ class TileMapLayerEntity extends Entity
 
 		this.tileMap = tileMapEntity;
 		this.layer = layer;
-		this.entities = [];
 
 		// Breakable walls
 		this.breakableWallGroup = this.createGroup(TILE_BREAKABLE_WALL, 'breakable');
@@ -434,15 +516,28 @@ class TileMapLayerEntity extends Entity
 		// Diamonds
 		this.diamondGroup = this.createGroup(TILE_DIAMOND, 'diamond');
 
-		// Doors
-		this.doorGroup = this.createGroup(TILE_DOOR, 'door');
-		this.doorGroup.forEach(doorSprite =>
+		// Doors up
+		this.doorUpGroup = this.createGroup(TILE_DOOR_UP, 'door');
+		this.doorUpGroup.forEach(doorSprite =>
 		{
 			doorSprite.body.immovable = true;
 			(<IDoor><any>doorSprite).isOpen = false;
 			var anims: Phaser.AnimationManager = doorSprite.animations;
 			anims.add('open', [0, 1, 2, 3, 4], 10, false);
 			anims.add('close', [4, 3, 2, 1, 0], 10, false);
+			doorSprite.frame = 0;
+		}, null);
+
+		// Doors down
+		this.doorDownGroup = this.createGroup(TILE_DOOR_DOWN, 'door');
+		this.doorDownGroup.forEach(doorSprite =>
+		{
+			doorSprite.body.immovable = true;
+			(<IDoor><any>doorSprite).isOpen = true;
+			var anims: Phaser.AnimationManager = doorSprite.animations;
+			anims.add('open', [5, 6, 7, 8, 9], 10, false);
+			anims.add('close', [9, 8, 7, 6, 5], 10, false);
+			doorSprite.frame = 9;
 		}, null);
 
 		// Buttons
@@ -460,7 +555,8 @@ class TileMapLayerEntity extends Entity
 			this.rockGroup,
 			this.keyGroup,
 			this.diamondGroup,
-			this.doorGroup,
+			this.doorUpGroup,
+			this.doorDownGroup,
 			this.buttonGroup,
 			this.waterGroup
 		];
@@ -508,7 +604,8 @@ class TileMapLayerEntity extends Entity
 		arcadePhysics.collide(player.sprite, this.rockGroup);
 		arcadePhysics.collide(player.sprite, this.keyGroup, (playerSprite, key) => player.collectKey(key));
 		arcadePhysics.collide(player.sprite, this.diamondGroup, (playerSprite, diamond) => player.collectDiamond(diamond));
-		arcadePhysics.collide(player.sprite, this.doorGroup, (playerSprite, door) => player.openDoor(door), (playerSprite, door) => !(<IDoor><any>door).isOpen);
+		arcadePhysics.collide(player.sprite, this.doorUpGroup, (playerSprite, door) => this.openDoor(door, TILE_DOOR_UP), (playerSprite, door) => !(<IDoor><any>door).isOpen);
+		arcadePhysics.collide(player.sprite, this.doorDownGroup, (playerSprite, door) => this.openDoor(door, TILE_DOOR_DOWN), (playerSprite, door) => !(<IDoor><any>door).isOpen);
 		arcadePhysics.overlap(player.sprite, this.buttonGroup, (playerSprite, button) => this.pressButton(button));
 		arcadePhysics.collide(player.sprite, this.waterGroup);
 	}
@@ -518,17 +615,8 @@ class TileMapLayerEntity extends Entity
 
 	public collideMobileObjectsWithLayer(layerEntity: TileMapLayerEntity)
 	{
-		//console.log(this.tileMap.name, "colliding with", layer.tileMap.name);
 		var arcadePhysics = game.physics.arcade;
 
-		// Collide the monsters and rocks with the walls in the given layer
-		/*var collideTargets = [layer, layer.breakableWallGroup];
-		for (var targetIndex = 0; targetIndex < collideTargets.length; ++targetIndex)
-		{
-			var wallGroup = collideTargets[targetIndex];
-			arcadePhysics.collide(this.monsterGroup, wallGroup);
-			arcadePhysics.collide(this.rockGroup, wallGroup);
-		}*/
 		arcadePhysics.collide(this.rockGroup, layerEntity.layer);
 		arcadePhysics.collide(this.rockGroup, layerEntity.breakableWallGroup);
 
@@ -706,6 +794,36 @@ class TileMapLayerEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
+	private openDoor(door: Phaser.Sprite, doorTileType: number)
+	{
+		if (!game.player.openDoor(door, doorTileType))
+			return;
+
+		if (doorTileType === TILE_DOOR_UP)
+		{
+			this.tileMap.triggerLevelChange(+1);
+			this.doorDownGroup.forEach(doorDown => PlayerEntity.setDoorClosed(doorDown), null);
+		}
+		else
+		{
+			this.tileMap.triggerLevelChange(-1);
+			this.doorUpGroup.forEach(doorUp => PlayerEntity.setDoorClosed(doorUp), null);
+		}
+	}
+
+	//------------------------------------------------------------------------------
+
+	public adjustDoors(closeDoorType: number)
+	{
+		var closeGroup = (closeDoorType === TILE_DOOR_DOWN) ? this.doorDownGroup : this.doorUpGroup;
+		var openGroup = (closeDoorType === TILE_DOOR_DOWN) ? this.doorUpGroup : this.doorDownGroup;
+
+		closeGroup.forEach(door => PlayerEntity.setDoorClosed(door), null);
+		openGroup.forEach(door => PlayerEntity.setDoorOpen(door), null);
+	}
+
+	//------------------------------------------------------------------------------
+
 	private tileMap: TileMapEntity;
 	private layer: Phaser.TilemapLayer;
 
@@ -714,15 +832,11 @@ class TileMapLayerEntity extends Entity
 	private rockGroup: Phaser.Group;
 	private keyGroup: Phaser.Group;
 	private diamondGroup: Phaser.Group;
-	private doorGroup: Phaser.Group;
+	private doorUpGroup: Phaser.Group;
+	private doorDownGroup: Phaser.Group;
 	private buttonGroup: Phaser.Group;
 	private waterGroup: Phaser.Group;
 	private allGroups: Phaser.Group[];
-
-	//private holes: HoleEntity[];
-	//private rocks: RockEntity[];
-
-	private entities: Entity[];
 }
 
 //------------------------------------------------------------------------------
@@ -737,26 +851,4 @@ interface IButton
 	isPressed: boolean;
 }
 
-/*class HoleEntity extends SpriteEntity
-{
-	constructor(sprite: Phaser.Sprite)
-	{
-		super(0, 0, null, sprite);
-		sprite.body.immovable = true;
-	}
-}
-
-//------------------------------------------------------------------------------
-
-class RockEntity extends SpriteEntity
-{
-	static DRAG = 100;
-
-	constructor(sprite: Phaser.Sprite)
-	{
-		super(0, 0, null, sprite);
-		sprite.body.drag.setTo(RockEntity.DRAG, RockEntity.DRAG);
-	}
-}
-*/
 //------------------------------------------------------------------------------
