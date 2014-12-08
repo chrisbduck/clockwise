@@ -79,9 +79,11 @@ class ClockwiseGame extends Phaser.Game
 		this.maps['top-right'] = topRight;
 		this.maps['bottom-right'] = bottomRight;
 		this.maps['bottom-left'] = bottomLeft;
-		// Workaround :)
+		// Workarounds :)
 		bottomRight.ignoreFirstSwitch = true;
 		bottomLeft.ignoreFirstSwitch = true;
+		bottomRight.ignoreSwitchOnLastLayer = true;
+		bottomLeft.ignoreSwitchOnLastLayer = true;
 
 		this.player = new PlayerEntity(32, 32);
 
@@ -119,9 +121,23 @@ class ClockwiseGame extends Phaser.Game
 
 	//------------------------------------------------------------------------------
 
+	public win()
+	{
+		var text1 = game.add.text(230, game.height / 2 - 12, "CONGRATULATIONS!", { font: "24px Verdana,Helvetica,sans-serif" });
+		var text2 = game.add.text(300, game.height / 2 + 12, "You won!", { font: "24px Verdana,Helvetica,sans-serif" });
+		text1.addColor('#ffff00', 0);
+		text2.addColor('#ffff00', 0);
+		this.winEmitter1 = new WinSparkleEmitter(game.width / 4, game.height / 2);
+		this.winEmitter2 = new WinSparkleEmitter(game.width * 3 / 4, game.height / 2);
+	}
+
+	//------------------------------------------------------------------------------
+
 	private maps: { [key: string]: TileMapEntity; };
 	public player: PlayerEntity;
 	private fpsText: Phaser.Text;
+	private winEmitter1: WinSparkleEmitter;
+	private winEmitter2: WinSparkleEmitter;
 }
 
 var game = new ClockwiseGame();

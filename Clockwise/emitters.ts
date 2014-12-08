@@ -89,3 +89,28 @@ class DiamondSparkleEmitter
 }
 
 //------------------------------------------------------------------------------
+
+class WinSparkleEmitter
+{
+	constructor(x: number, y: number)
+	{
+		var emitter = game.add.emitter(x, y);
+		emitter.makeParticles('gleam');
+		//emitter.lifespan = 5000;
+		emitter.minParticleSpeed.setTo(-300, -300);
+		emitter.maxParticleSpeed.setTo(300, 0);
+		emitter.minParticleScale = 0.1;
+		emitter.maxParticleScale = 1;
+		emitter.gravity = 300;
+		//emitter.autoAlpha = true;
+		//emitter.setAlpha(0, 1, 1000);//, Phaser.Easing.Quadratic.Out(1));
+
+		emitter.start(false, 3000, 5);
+
+		this.emitter = emitter;
+	}
+
+	private emitter: Phaser.Particles.Arcade.Emitter;
+}
+
+//------------------------------------------------------------------------------

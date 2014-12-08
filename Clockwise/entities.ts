@@ -295,10 +295,9 @@ var TILE_WATER = 2;
 var TILE_DOOR_UP = 3;
 var TILE_DOOR_DOWN = 4;
 var TILE_BREAKABLE_WALL = 5;
-var TILE_MONSTER = 6;
 var TILE_HOLE = 6;
 var TILE_ROCK = 7;
-var TILE_DOOR = 8;
+var TILE_FINAL_DOOR = 8;
 var TILE_DIAMOND = 9;
 var TILE_KEY = 10;
 var TILE_BUTTON = 11;
@@ -338,6 +337,7 @@ class TileMapEntity extends Entity
 
 		this.haveGoneUp = false;
 		this.ignoreFirstSwitch = false;
+		this.ignoreSwitchOnLastLayer = false;
 
 		this.switchTo(0);
 	}
@@ -395,7 +395,8 @@ class TileMapEntity extends Entity
 			if (!this.haveGoneUp)
 			{
 				this.haveGoneUp = true;
-				this.linkedMap.adjustLayer(adjust);
+				if (!(this.ignoreSwitchOnLastLayer && this.currentLayerIndex == this.layers.length - 1))
+					this.linkedMap.adjustLayer(adjust);
 				this.nextMap.fadeIn(TILE_DOOR_UP);
 				this.prevMap.fadeOut(TILE_DOOR_UP);
 			}
@@ -406,7 +407,8 @@ class TileMapEntity extends Entity
 			if (this.haveGoneUp)
 			{
 				this.haveGoneUp = false;
-				this.linkedMap.adjustLayer(adjust);
+				if (!(this.ignoreSwitchOnLastLayer && this.currentLayerIndex == this.layers.length - 1))
+					this.linkedMap.adjustLayer(adjust);
 				this.nextMap.fadeOut(TILE_DOOR_DOWN);
 				this.prevMap.fadeIn(TILE_DOOR_DOWN);
 			}
@@ -445,7 +447,7 @@ class TileMapEntity extends Entity
 
 	private fadeOut(closeDoorType: number)
 	{
-		game.add.tween(this).to({ shadowAlpha: 0 }, 3000, Phaser.Easing.Quadratic.Out, true);
+		game.add.tween(this).to({ shadowAlpha: 0 }, 2000, Phaser.Easing.Quadratic.Out, true);
 		this.currentLayer.adjustDoors(closeDoorType);
 	}
 
@@ -453,7 +455,7 @@ class TileMapEntity extends Entity
 
 	private fadeIn(closeDoorType: number)
 	{
-		game.add.tween(this).to({ shadowAlpha: 1 }, 1500, Phaser.Easing.Quadratic.In, true);
+		game.add.tween(this).to({ shadowAlpha: 1 }, 750, Phaser.Easing.Quadratic.In, true);
 		this.currentLayer.adjustDoors(closeDoorType);
 	}
 
@@ -472,6 +474,7 @@ class TileMapEntity extends Entity
 	private triggerCallback: () => void;
 	private haveGoneUp: boolean;
 	public ignoreFirstSwitch: boolean;
+	public ignoreSwitchOnLastLayer: boolean;
 
 	private shadowBmp: Phaser.BitmapData;
 	private shadowImg: Phaser.Image;
@@ -497,7 +500,7 @@ class TileMapLayerEntity extends Entity
 		this.breakableWallGroup.forEach(sprite => sprite.body.immovable = true, null);
 
 		// Holes
-		this.holeGroup = this.createGroup(TILE_MONSTER, 'hole');
+		this.holeGroup = this.createGroup(TILE_HOLE, 'hole');
 		this.holeGroup.forEach(sprite =>
 		{
 			sprite.body.immovable = true;
@@ -530,15 +533,26 @@ class TileMapLayerEntity extends Entity
 
 		// Doors down
 		this.doorDownGroup = this.createGroup(TILE_DOOR_DOWN, 'door');
+		var lengthWithoutFinalDoor = this.doorDownGroup.children.length;
+		this.layer.map.createFromTiles(TILE_FINAL_DOOR, -1, 'door', this.layer, this.doorDownGroup);
 		this.doorDownGroup.forEach(doorSprite =>
 		{
 			doorSprite.body.immovable = true;
 			(<IDoor><any>doorSprite).isOpen = true;
+			(<IDoor><any>doorSprite).isFinal = false;
 			var anims: Phaser.AnimationManager = doorSprite.animations;
 			anims.add('open', [5, 6, 7, 8, 9], 10, false);
 			anims.add('close', [9, 8, 7, 6, 5], 10, false);
 			doorSprite.frame = 9;
 		}, null);
+		if (this.doorDownGroup.children.length > lengthWithoutFinalDoor)
+		{
+			// There is a final door.  Tag it
+			var door: Phaser.Sprite = (<Phaser.Sprite><any>this.doorDownGroup.children[this.doorDownGroup.children.length - 1]);
+			door.frame = 5;
+			(<IDoor><any>door).isOpen = false;
+			(<IDoor><any>door).isFinal = true;
+		}
 
 		// Buttons
 		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
@@ -804,6 +818,8 @@ class TileMapLayerEntity extends Entity
 			this.tileMap.triggerLevelChange(+1);
 			this.doorDownGroup.forEach(doorDown => PlayerEntity.setDoorClosed(doorDown), null);
 		}
+		else if ((<IDoor><any>door).isFinal)
+			game.win();
 		else
 		{
 			this.tileMap.triggerLevelChange(-1);
@@ -819,7 +835,11 @@ class TileMapLayerEntity extends Entity
 		var openGroup = (closeDoorType === TILE_DOOR_DOWN) ? this.doorUpGroup : this.doorDownGroup;
 
 		closeGroup.forEach(door => PlayerEntity.setDoorClosed(door), null);
-		openGroup.forEach(door => PlayerEntity.setDoorOpen(door), null);
+		openGroup.forEach(door =>
+		{
+			if (!(<IDoor><any>door).isFinal)
+				PlayerEntity.setDoorOpen(door);
+		}, null);
 	}
 
 	//------------------------------------------------------------------------------
@@ -844,6 +864,7 @@ class TileMapLayerEntity extends Entity
 interface IDoor
 {
 	isOpen: boolean;
+	isFinal: boolean;
 }
 
 interface IButton
