@@ -158,6 +158,7 @@ class PlayerEntity extends SpriteEntity
 		// Stop the player's charge with a thump
 		this.isCharging = false;
 		this.isStunned = true;
+		game.chargeSound.play();
 		game.time.events.add(500, () => this.isStunned = false, null).timer.start();
 
 		// Shake the camera, if the speed was high enough
@@ -189,9 +190,10 @@ class PlayerEntity extends SpriteEntity
 	public collectKey(key: Phaser.Sprite)
 	{
 		this.keyDisplay = key;
-		key.position.setTo(0, 32);
+		key.position.setTo(0, 0);
 		this.collectSprite(key);
 		this.hasKey = true;
+		game.getKeySound.play();
 	}
 
 	//------------------------------------------------------------------------------
@@ -224,7 +226,8 @@ class PlayerEntity extends SpriteEntity
 
 	public static setDoorClosed(door: Phaser.Sprite)
 	{
-		door.animations.play('close');
+		if (!(<IDoor><any>door).isFinal)		// don't show the final door closing ever
+			door.animations.play('close');
 		(<IDoor><any>door).isOpen = false;
 	}
 
@@ -236,6 +239,7 @@ class PlayerEntity extends SpriteEntity
 		if ((doorTileType === TILE_DOOR_UP && !this.hasKey) || (doorTileType === TILE_DOOR_DOWN && !this.hasDiamond))
 			return false;
 
+		game.openDoorSound.play();
 		PlayerEntity.setDoorOpen(door);
 		if (doorTileType == TILE_DOOR_UP)
 			this.useKey();
@@ -247,9 +251,10 @@ class PlayerEntity extends SpriteEntity
 	public collectDiamond(diamond: Phaser.Sprite)
 	{
 		this.diamondDisplay = diamond;
-		diamond.position.setTo(0, 64);
+		diamond.position.setTo(0, 0);
 		this.collectSprite(diamond);
 		this.hasDiamond = true;
+		game.getDiamondSound.play();
 
 		if (this.sparkleEmitter == null)
 			this.sparkleEmitter = new DiamondSparkleEmitter(this.sprite.position.x, this.sprite.position.y);
@@ -313,7 +318,7 @@ class TileMapEntity extends Entity
 		this.tileMap = game.add.tilemap(tilemap);
 		this.tileMap.addTilesetImage(tileset);
 		this.layers = [];
-		for (var layerName in { "Tile Layer 1": 0, "Tile Layer 2": 0 })
+		for (var layerName in { "Tile Layer 1": 0, "Tile Layer 2": 0, "Tile Layer 3": 0 })
 		{
 			var layer: TileMapLayerEntity = new TileMapLayerEntity(this.tileMap.createLayer(layerName), this);
 			layer.stop();
@@ -376,12 +381,14 @@ class TileMapEntity extends Entity
 		if (adjust > 0)
 		{
 			this.haveGoneUp = false;
-			this.switchTo(1);
+			if (this.currentLayerIndex < this.layers.length - 1)
+				this.switchTo(this.currentLayerIndex + 1);
 		}
 		else
 		{
 			this.haveGoneUp = true;
-			this.switchTo(0);
+			if (this.currentLayerIndex > 0)
+				this.switchTo(this.currentLayerIndex - 1);
 		}
 	}
 
@@ -471,7 +478,6 @@ class TileMapEntity extends Entity
 	private tileMap: Phaser.Tilemap;
 	private layers: TileMapLayerEntity[];
 	private currentLayerIndex: number;
-	private triggerCallback: () => void;
 	private haveGoneUp: boolean;
 	public ignoreFirstSwitch: boolean;
 	public ignoreSwitchOnLastLayer: boolean;
@@ -495,6 +501,10 @@ class TileMapLayerEntity extends Entity
 		this.tileMap = tileMapEntity;
 		this.layer = layer;
 
+		// Water
+		this.waterGroup = this.createGroup(TILE_WATER, 'water');
+		this.waterGroup.forEach(water => water.body.immovable = true, null);
+
 		// Breakable walls
 		this.breakableWallGroup = this.createGroup(TILE_BREAKABLE_WALL, 'breakable');
 		this.breakableWallGroup.forEach(sprite => sprite.body.immovable = true, null);
@@ -506,18 +516,27 @@ class TileMapLayerEntity extends Entity
 			sprite.body.immovable = true;
 		}, null);
 
-		// Rocks
-		this.rockGroup = this.createGroup(TILE_ROCK, 'rock');
-		this.rockGroup.forEach(sprite =>
-		{
-			sprite.body.drag.setTo(ROCK_DRAG, ROCK_DRAG);
-		}, null);
+		// Buttons
+		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
+		this.buttonGroup.forEach(buttonSprite => this.initButton(buttonSprite), null);
 
 		// Keys
 		this.keyGroup = this.createGroup(TILE_KEY, 'key');
 
 		// Diamonds
 		this.diamondGroup = this.createGroup(TILE_DIAMOND, 'diamond');
+
+		// Rocks
+		this.rockGroup = this.createGroup(TILE_ROCK, 'rock');
+		this.rockGroup.forEach(sprite =>
+		{
+			sprite.body.drag.setTo(ROCK_DRAG, ROCK_DRAG);
+			// Make it easier to move these between things
+			sprite.body.width = 28;
+			sprite.body.height = 28;
+			sprite.body.offset.x = 2;
+			sprite.body.offset.y = 2;
+		}, null);
 
 		// Doors up
 		this.doorUpGroup = this.createGroup(TILE_DOOR_UP, 'door');
@@ -553,14 +572,6 @@ class TileMapLayerEntity extends Entity
 			(<IDoor><any>door).isOpen = false;
 			(<IDoor><any>door).isFinal = true;
 		}
-
-		// Buttons
-		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
-		this.buttonGroup.forEach(buttonSprite => this.initButton(buttonSprite), null);
-
-		// Water
-		this.waterGroup = this.createGroup(TILE_WATER, 'water');
-		this.waterGroup.forEach(water => water.body.immovable = true, null);
 
 		// All groups
 		this.allGroups = [
@@ -671,6 +682,7 @@ class TileMapLayerEntity extends Entity
 
 		new BreakableWallEmitter(wall.x, wall.y);
 		wall.kill();
+		game.brokeWallSound.play();
 	}
 
 	//------------------------------------------------------------------------------
@@ -685,6 +697,7 @@ class TileMapLayerEntity extends Entity
 			new FilledHoleEmitter(holeSprite.x, holeSprite.y);
 			rockSprite.kill();
 			holeSprite.kill();
+			game.rockInHoleSound.play();
 			return;
 		}
 
@@ -722,6 +735,8 @@ class TileMapLayerEntity extends Entity
 
 		// Set this one as pressed
 		this.setButtonPressed(button, true);
+
+		game.gravitySound.play();
 	}
 
 	//------------------------------------------------------------------------------

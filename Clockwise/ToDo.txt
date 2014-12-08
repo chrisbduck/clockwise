@@ -1,7 +1,5 @@
 ﻿Tasks left to do:
 
-- Level design
-- Room visibility
 - Limited-time charge
 - Water emitter - attach to *rocks*
 - Rock rolling
