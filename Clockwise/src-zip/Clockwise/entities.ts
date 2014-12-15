@@ -6,11 +6,6 @@
 /// <reference path='phaser/phaser.d.ts'/>
 /// <reference path='emitters.ts'/>
 
-var FADE_OUT_DURATION_MS = 2000;
-var FADE_OUT_EASE = Phaser.Easing.Quadratic.Out;
-var FADE_IN_DURATION_MS = 750;
-var FADE_IN_EASE = Phaser.Easing.Quadratic.In;
-
 //------------------------------------------------------------------------------
 
 class Entity
@@ -80,11 +75,11 @@ class PlayerEntity extends SpriteEntity
 		(<any>body).height = 24;		// syntax is fine; spurious error from defs
 		body.offset.y = 4;
 
-		this.mapEntryPos = null;
-		this.keyDisplay = game.add.sprite(0, 0, 'key');
-		this.diamondDisplay = game.add.sprite(0, 0, 'diamond');
+		this.hasKey = false;
+		this.keyDisplay = null;
+		this.hasDiamond = false;
+		this.diamondDisplay = null;
 		this.sparkleEmitter = null;
-		this.reset();
 	}
 
 	//------------------------------------------------------------------------------
@@ -94,7 +89,6 @@ class PlayerEntity extends SpriteEntity
 		var vel = this.sprite.body.velocity;
 		this.prevVel.setTo(vel.x, vel.y);
 
-		// Move the sparkle emitter along with the player
 		if (this.sparkleEmitter != null)
 			this.sparkleEmitter.setPosition(this.sprite.position);
 
@@ -107,19 +101,7 @@ class PlayerEntity extends SpriteEntity
 
 			var animKey = null;
 
-			// Check up/down
-			if (this.cursorKeys.up.isDown)
-			{
-				accel.y = -PlayerEntity.ACCELERATION;
-				animKey = 'up';
-			}
-			else if (this.cursorKeys.down.isDown)
-			{
-				accel.y = PlayerEntity.ACCELERATION;
-				animKey = 'down';
-			}
-
-			// Check left/right second because its animation takes precedence
+			// Check left/right
 			if (this.cursorKeys.right.isDown)
 			{
 				accel.x = PlayerEntity.ACCELERATION;
@@ -129,6 +111,18 @@ class PlayerEntity extends SpriteEntity
 			{
 				accel.x = -PlayerEntity.ACCELERATION;
 				animKey = 'left';
+			}
+
+			// Check up/down second because its animation takes precedence
+			if (this.cursorKeys.up.isDown)
+			{
+				accel.y = -PlayerEntity.ACCELERATION;
+				animKey = 'up';
+			}
+			else if (this.cursorKeys.down.isDown)
+			{
+				accel.y = PlayerEntity.ACCELERATION;
+				animKey = 'down';
 			}
 
 			// Play animation
@@ -152,10 +146,6 @@ class PlayerEntity extends SpriteEntity
 				maxVel *= PlayerEntity.DIAG_FACTOR;
 			this.sprite.body.maxVelocity.setTo(maxVel, maxVel);
 		}
-
-		// Debugging: Ctrl+K gives you a key
-		if (game.input.keyboard.isDown(Phaser.Keyboard.K) && game.input.keyboard.isDown(Phaser.Keyboard.CONTROL) && !this.hasKey)
-			this.collectKey(null);
 	}
 
 	//------------------------------------------------------------------------------
@@ -197,12 +187,11 @@ class PlayerEntity extends SpriteEntity
 
 	//------------------------------------------------------------------------------
 
-	public collectKey(key?: Phaser.Sprite)
+	public collectKey(key: Phaser.Sprite)
 	{
-		if (key != null)
-			this.collectSprite(key);
-		this.keyDisplay.visible = true;
-		this.keyDisplay.bringToTop();
+		this.keyDisplay = key;
+		key.position.setTo(0, 0);
+		this.collectSprite(key);
 		this.hasKey = true;
 		game.getKeySound.play();
 	}
@@ -211,16 +200,17 @@ class PlayerEntity extends SpriteEntity
 
 	private collectSprite(sprite: Phaser.Sprite)
 	{
-		hideSprite(sprite);
 		sprite.body.velocity.setTo(0, 0);
 		sprite.body.gravity.setTo(0, 0);
+		PlayerEntity.changeSpriteGroup(sprite, game.world);
 	}
 
 	//------------------------------------------------------------------------------
 
 	public useKey()
 	{
-		this.keyDisplay.visible = false;
+		this.keyDisplay.kill();
+		this.keyDisplay = null;
 		this.hasKey = false;
 	}
 
@@ -260,13 +250,11 @@ class PlayerEntity extends SpriteEntity
 
 	public collectDiamond(diamond: Phaser.Sprite)
 	{
-		diamond.visible = false;
+		this.diamondDisplay = diamond;
+		diamond.position.setTo(0, 0);
 		this.collectSprite(diamond);
-		this.diamondDisplay.visible = true;
-		this.diamondDisplay.bringToTop();
 		this.hasDiamond = true;
 		game.getDiamondSound.play();
-		game.switchTitle();
 
 		if (this.sparkleEmitter == null)
 			this.sparkleEmitter = new DiamondSparkleEmitter(this.sprite.position.x, this.sprite.position.y);
@@ -283,45 +271,11 @@ class PlayerEntity extends SpriteEntity
 
 	//------------------------------------------------------------------------------
 
-	public fadeOut()
-	{
-		game.add.tween(this.sprite).to({ alpha: 0 }, FADE_OUT_DURATION_MS, FADE_OUT_EASE, true);
-	}
-
-	//------------------------------------------------------------------------------
-
-	public fadeIn()
-	{
-		game.add.tween(this.sprite).to({ alpha: 1 }, FADE_IN_DURATION_MS, FADE_IN_EASE, true);
-	}
-
-	//------------------------------------------------------------------------------
-
-	public reset()
-	{
-		if (this.mapEntryPos != null)
-			this.sprite.position.setTo(this.mapEntryPos.x, this.mapEntryPos.y);
-
-		this.hasKey = false;
-		this.keyDisplay.visible = false;
-		// Don't reset the diamond.  If the player has it, they can keep it.
-	}
-
-	//------------------------------------------------------------------------------
-
-	public setMapEntryPos()
-	{
-		this.mapEntryPos = this.sprite.position.clone();
-	}
-
-	//------------------------------------------------------------------------------
-
 	public isCharging: boolean;
 	public hasKey: boolean;
 	public hasDiamond: boolean;
 	private cursorKeys: Phaser.CursorKeys;
 	private prevVel: Phaser.Point;
-	private mapEntryPos: Phaser.Point;
 	private chargeHaltPending: boolean;
 	private isStunned: boolean;
 	private keyDisplay: Phaser.Sprite;
@@ -365,7 +319,11 @@ class TileMapEntity extends Entity
 		this.tileMap.addTilesetImage(tileset);
 		this.layers = [];
 		for (var layerName in { "Tile Layer 1": 0, "Tile Layer 2": 0, "Tile Layer 3": 0 })
-			this.layers.push(this.createLayer(layerName));
+		{
+			var layer: TileMapLayerEntity = new TileMapLayerEntity(this.tileMap.createLayer(layerName), this);
+			layer.stop();
+			this.layers.push(layer);
+		}
 
 		var shadowSize = TILE_SIZE * (NUM_TILES / 2 - 1);
 		var shadowX = tileX;
@@ -385,7 +343,6 @@ class TileMapEntity extends Entity
 		this.haveGoneUp = false;
 		this.ignoreFirstSwitch = false;
 		this.ignoreSwitchOnLastLayer = false;
-		this.isCurrent = false;
 
 		this.switchTo(0);
 	}
@@ -401,13 +358,6 @@ class TileMapEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
-	private createLayer(layerName: string)
-	{
-		return new TileMapLayerEntity(this.tileMap.createLayer(layerName), layerName, this);
-	}
-
-	//------------------------------------------------------------------------------
-
 	private updateShadow()
 	{
 		var alpha = Math.ceil(this.shadowAlpha * 255);
@@ -416,8 +366,6 @@ class TileMapEntity extends Entity
 		this.shadowBmp.dirty = true;
 
 		this.shadowPrevAlpha = this.shadowAlpha;
-		this.isVisible = this.shadowAlpha > 0;
-		this.shadowImg.bringToTop();
 	}
 
 	//------------------------------------------------------------------------------
@@ -458,7 +406,6 @@ class TileMapEntity extends Entity
 					this.linkedMap.adjustLayer(adjust);
 				this.nextMap.fadeIn(TILE_DOOR_UP);
 				this.prevMap.fadeOut(TILE_DOOR_UP);
-				game.setCurrentMap(this.nextMap);
 			}
 		}
 		else
@@ -471,16 +418,8 @@ class TileMapEntity extends Entity
 					this.linkedMap.adjustLayer(adjust);
 				this.nextMap.fadeOut(TILE_DOOR_DOWN);
 				this.prevMap.fadeIn(TILE_DOOR_DOWN);
-				game.setCurrentMap(this.prevMap);
 			}
 		}
-	}
-
-	//------------------------------------------------------------------------------
-
-	public reset()
-	{
-		this.currentLayer.reset();
 	}
 
 	//------------------------------------------------------------------------------
@@ -513,26 +452,18 @@ class TileMapEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
-	public fadeOut(closeDoorType: number, completeFn: (obj, tween) => void = null)
+	private fadeOut(closeDoorType: number)
 	{
-		var tween = game.add.tween(this).to({ shadowAlpha: 0 }, FADE_OUT_DURATION_MS, FADE_OUT_EASE, true);
-		if (completeFn != null)
-			tween.onComplete.add(completeFn);
-
-		if (closeDoorType === TILE_DOOR_UP || closeDoorType === TILE_DOOR_DOWN)
-			this.currentLayer.adjustDoors(closeDoorType);
+		game.add.tween(this).to({ shadowAlpha: 0 }, 2000, Phaser.Easing.Quadratic.Out, true);
+		this.currentLayer.adjustDoors(closeDoorType);
 	}
 
 	//------------------------------------------------------------------------------
 
-	public fadeIn(closeDoorType: number, completeFn: (obj, tween) => void = null)
+	private fadeIn(closeDoorType: number)
 	{
-		var tween = game.add.tween(this).to({ shadowAlpha: 1 }, FADE_IN_DURATION_MS, FADE_IN_EASE, true);
-		if (completeFn != null)
-			tween.onComplete.add(completeFn);
-
-		if (closeDoorType === TILE_DOOR_UP || closeDoorType === TILE_DOOR_DOWN)
-			this.currentLayer.adjustDoors(closeDoorType);
+		game.add.tween(this).to({ shadowAlpha: 1 }, 750, Phaser.Easing.Quadratic.In, true);
+		this.currentLayer.adjustDoors(closeDoorType);
 	}
 
 	//------------------------------------------------------------------------------
@@ -550,8 +481,6 @@ class TileMapEntity extends Entity
 	private haveGoneUp: boolean;
 	public ignoreFirstSwitch: boolean;
 	public ignoreSwitchOnLastLayer: boolean;
-	public isVisible: boolean;
-	public isCurrent: boolean;
 
 	private shadowBmp: Phaser.BitmapData;
 	private shadowImg: Phaser.Image;
@@ -565,13 +494,12 @@ var ROCK_DRAG = 100;
 
 class TileMapLayerEntity extends Entity
 {
-	constructor(layer: Phaser.TilemapLayer, name: string, tileMapEntity: TileMapEntity)
+	constructor(layer: Phaser.TilemapLayer, tileMapEntity: TileMapEntity)
 	{
 		super();
 
 		this.tileMap = tileMapEntity;
 		this.layer = layer;
-		this.name = name;
 
 		// Water
 		this.waterGroup = this.createGroup(TILE_WATER, 'water');
@@ -583,7 +511,10 @@ class TileMapLayerEntity extends Entity
 
 		// Holes
 		this.holeGroup = this.createGroup(TILE_HOLE, 'hole');
-		this.holeGroup.forEach(sprite => sprite.body.immovable = true, null);
+		this.holeGroup.forEach(sprite =>
+		{
+			sprite.body.immovable = true;
+		}, null);
 
 		// Buttons
 		this.buttonGroup = this.createGroup(TILE_BUTTON, 'button');
@@ -655,10 +586,7 @@ class TileMapLayerEntity extends Entity
 			this.waterGroup
 		];
 
-		// Make everything resettable
-		this.allGroups.forEach(group => group.forEach(sprite => makeResettableSprite(sprite), null));
-
-		this.stop();
+		this.allGroups.forEach(group => group.visible = false);
 	}
 
 	//------------------------------------------------------------------------------
@@ -679,16 +607,7 @@ class TileMapLayerEntity extends Entity
 		//this.layer.debug = true;
 		this.layer.map.setLayer(this.layer);
 
-		this.allGroups.forEach(group =>
-		{
-			group.visible = true;
-			// Enable bodies on all visible sprites
-			/*group.forEach(sprite =>
-			{
-				if (sprite.visible)
-					sprite.body.enable = true;
-			}, null);*/
-		});
+		this.allGroups.forEach(group => group.visible = true);
 	}
 
 	//------------------------------------------------------------------------------
@@ -696,12 +615,7 @@ class TileMapLayerEntity extends Entity
 	public stop()
 	{
 		this.layer.visible = false;
-		this.allGroups.forEach(group =>
-		{
-			group.visible = false;
-			// Disable bodies on all sprites; invisible ones already have disabled bodies
-			//group.forEach(sprite => sprite.body.enable = false, null);
-		});
+		this.allGroups.forEach(group => group.visible = false);
 	}
 
 	//------------------------------------------------------------------------------
@@ -730,12 +644,9 @@ class TileMapLayerEntity extends Entity
 
 		arcadePhysics.collide(this.rockGroup, layerEntity.layer);
 		arcadePhysics.collide(this.rockGroup, layerEntity.breakableWallGroup);
-		layerEntity.collideWithClosedDoors(this.rockGroup);
 
 		arcadePhysics.collide(this.keyGroup, layerEntity.layer);
 		arcadePhysics.collide(this.keyGroup, layerEntity.breakableWallGroup);
-		arcadePhysics.collide(this.keyGroup, layerEntity.rockGroup);
-		layerEntity.collideWithClosedDoors(this.keyGroup);
 
 		arcadePhysics.collide(this.diamondGroup, layerEntity.layer);
 		arcadePhysics.collide(this.diamondGroup, layerEntity.breakableWallGroup);
@@ -745,29 +656,12 @@ class TileMapLayerEntity extends Entity
 
 	public collideMobileObjectsTogether()
 	{
-		var arcadePhysics = game.physics.arcade;
-
 		// Collide the rocks with the holes in the same layer, and the rocks with the other rocks
-		arcadePhysics.overlap(this.rockGroup, this.holeGroup, this.rockHitHole);
-		arcadePhysics.collide(this.rockGroup, this.rockGroup);
+		game.physics.arcade.overlap(this.rockGroup, this.holeGroup, this.rockHitHole);
+		game.physics.arcade.collide(this.rockGroup, this.rockGroup);
 
-		// Collide the keys with the rocks, and both with the doors
-		arcadePhysics.collide(this.rockGroup, this.keyGroup);
-		this.collideWithClosedDoors(this.rockGroup);
-		this.collideWithClosedDoors(this.keyGroup);
-
+		// Rocks and such can roll over keys.
 		// Not bothering to check for collisions with diamonds; there'll probably only be one.
-	}
-
-	//------------------------------------------------------------------------------
-
-	private collideWithClosedDoors(objToCheck: any)
-	{
-		var doorOpenCheck = (sprite, door) => !(<IDoor><any>door).isOpen;
-		var arcadePhysics = game.physics.arcade;
-
-		arcadePhysics.collide(objToCheck, this.doorUpGroup, null, doorOpenCheck);
-		arcadePhysics.collide(objToCheck, this.doorDownGroup, null, doorOpenCheck);
 	}
 
 	//------------------------------------------------------------------------------
@@ -787,8 +681,7 @@ class TileMapLayerEntity extends Entity
 			return;
 
 		new BreakableWallEmitter(wall.x, wall.y);
-		//wall.kill();
-		hideSprite(wall);
+		wall.kill();
 		game.brokeWallSound.play();
 	}
 
@@ -802,10 +695,8 @@ class TileMapLayerEntity extends Entity
 		{
 			// Fill the hole with the rock - destroy both objects
 			new FilledHoleEmitter(holeSprite.x, holeSprite.y);
-			//rockSprite.kill();
-			//holeSprite.kill();
-			hideSprite(rockSprite);
-			hideSprite(holeSprite);
+			rockSprite.kill();
+			holeSprite.kill();
 			game.rockInHoleSound.play();
 			return;
 		}
@@ -968,25 +859,8 @@ class TileMapLayerEntity extends Entity
 
 	//------------------------------------------------------------------------------
 
-	public reset()
-	{
-		this.allGroups.forEach(
-			group => group.children.forEach(
-				displayObj =>
-				{
-					var resettable: IResettableSprite = (<IResettableSprite>displayObj);
-					if (resettable.originalPos)
-						resetAndShow(resettable);
-				}));
-
-		this.buttonGroup.forEach(button => this.setButtonPressed(button, false), null);
-	}
-
-	//------------------------------------------------------------------------------
-
 	private tileMap: TileMapEntity;
 	private layer: Phaser.TilemapLayer;
-	public name: string;
 
 	private breakableWallGroup: Phaser.Group;
 	private holeGroup: Phaser.Group;
@@ -1008,47 +882,9 @@ interface IDoor
 	isFinal: boolean;
 }
 
-//------------------------------------------------------------------------------
-
 interface IButton
 {
 	isPressed: boolean;
-}
-
-//------------------------------------------------------------------------------
-
-interface IResettableSprite extends Phaser.Sprite
-{
-	originalPos: Phaser.Point;
-}
-
-//------------------------------------------------------------------------------
-
-function makeResettableSprite(sprite: Phaser.Sprite)
-{
-	var resettable: IResettableSprite = <IResettableSprite>sprite;
-	resettable.originalPos = sprite.position.clone();
-}
-
-//------------------------------------------------------------------------------
-
-function hideSprite(sprite: Phaser.Sprite)
-{
-	sprite.visible = false;
-	sprite.body.enable = false;
-}
-
-//------------------------------------------------------------------------------
-
-function resetAndShow(sprite: IResettableSprite)
-{
-	sprite.position.setTo(sprite.originalPos.x, sprite.originalPos.y);
-	sprite.visible = true;
-	var body: Phaser.Physics.Arcade.Body = sprite.body;
-	body.velocity.setTo(0, 0);
-	body.acceleration.setTo(0, 0);
-	body.gravity.setTo(0, 0);
-	body.enable = true;
 }
 
 //------------------------------------------------------------------------------

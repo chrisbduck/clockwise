@@ -62,7 +62,7 @@ class ClockwiseGame extends Phaser.Game
 	{
 		// Stop various key presses from passing through to the browser
 		var keyboard = Phaser.Keyboard;
-		this.input.keyboard.addKeyCapture([keyboard.LEFT, keyboard.RIGHT, keyboard.UP, keyboard.DOWN, keyboard.SPACEBAR, keyboard.BACKSPACE, keyboard.K]);
+		this.input.keyboard.addKeyCapture([keyboard.LEFT, keyboard.RIGHT, keyboard.UP, keyboard.DOWN, keyboard.SPACEBAR]);
 
 		this.physics.startSystem(Phaser.Physics.ARCADE);
 
@@ -70,10 +70,6 @@ class ClockwiseGame extends Phaser.Game
 		this.world.setBounds(-10, -10, this.width + 20, this.height + 20);
 
 		this.add.sprite(32, 32, 'background');
-
-		this.isRestarting = false;
-
-		this.player = new PlayerEntity(32, 32);
 
 		this.maps = {};
 		var HALF_NUM_TILES = NUM_TILES / 2;
@@ -94,7 +90,6 @@ class ClockwiseGame extends Phaser.Game
 		bottomLeft.ignoreFirstSwitch = true;
 		bottomRight.ignoreSwitchOnLastLayer = true;
 		bottomLeft.ignoreSwitchOnLastLayer = true;
-		this.setCurrentMap(topLeft);
 
 		this.brokeWallSound = this.sound.add('broke-wall');
 		this.chargeSound = this.sound.add('charge');
@@ -104,29 +99,29 @@ class ClockwiseGame extends Phaser.Game
 		this.openDoorSound = this.sound.add('open-door');
 		this.rockInHoleSound = this.sound.add('rock-in-hole');
 
+		this.player = new PlayerEntity(32, 32);
+
 		//this.fpsText = this.add.text(4, 4, "FPS: 0", { font: "24px Verdana,Helvetica,sans-serif" });
 		this.time.advancedTiming = true;
 
 		//this.time.events.loop(1000, () => this.fpsText.text = "FPS: " + this.time.fps, null);
 
-		this.titleText = this.addCentredText(2, "Clockwise!");
+		this.titleText = this.add.text(300, 2, "Clockwise!", { font: "24px Verdana,Helvetica,sans-serif" });
+		this.titleText.addColor('#ffff00', 0);
 	}
 
 	//------------------------------------------------------------------------------
 
 	private _update()
 	{
-		// Update all maps
 		var currentLayers: TileMapLayerEntity[] = [];
 		for (var key in this.maps)
 		{
 			var map = this.maps[key];
 			map.update();
-			if (map.isVisible)
-				currentLayers.push(map.currentLayer);
+			currentLayers.push(map.currentLayer);
 		}
 
-		// Apply all collisions within and between layers
 		for (var layerIndex = 0; layerIndex < currentLayers.length; ++layerIndex)
 		{
 			var layer = currentLayers[layerIndex];
@@ -138,101 +133,29 @@ class ClockwiseGame extends Phaser.Game
 				layer.collideMobileObjectsWithLayer(currentLayers[otherLayerIndex]);
 		}
 
-
-		// Check for a restart room press
-		if (!this.isRestarting)
-		{
-			if (this.input.keyboard.isDown(Phaser.Keyboard.BACKSPACE))
-			{
-				this.isRestarting = true;
-				for (var key in this.maps)
-				{
-					var map = this.maps[key];
-					if (map.isVisible)
-						map.fadeOut(null, (mapObj, tween) => this.resetLayer(mapObj));
-				}
-				this.player.fadeOut();
-			}
-			else
-				this.player.update();
-		}
+		this.player.update();
 	}
 
 	//------------------------------------------------------------------------------
 
 	public win()
 	{
-		this.changeCentredText(this.titleText, "Clockwise!");
-		this.addCentredText(game.height / 2 + 12, "CONGRATULATIONS!");
-		this.addCentredText(game.height / 2 + 44, "You won!");
+		var text1 = game.add.text(230, game.height / 2 - 12, "CONGRATULATIONS!", { font: "24px Verdana,Helvetica,sans-serif" });
+		var text2 = game.add.text(300, game.height / 2 + 12, "You won!", { font: "24px Verdana,Helvetica,sans-serif" });
+		text1.addColor('#ffff00', 0);
+		text2.addColor('#ffff00', 0);
 		this.winEmitter1 = new WinSparkleEmitter(game.width / 4, game.height / 2);
 		this.winEmitter2 = new WinSparkleEmitter(game.width * 3 / 4, game.height / 2);
 	}
 
 	//------------------------------------------------------------------------------
 
-	public switchTitle()
-	{
-		this.changeCentredText(this.titleText, "Anticlockwise!");
-	}
-
-	//------------------------------------------------------------------------------
-
-	private resetLayer(map: TileMapEntity)
-	{
-		// If this is the current map, recreate it
-		if (map === this.currentMap)
-			this.currentMap.reset();
-
-		map.fadeIn(null);
-
-		if (map === this.currentMap && this.isRestarting)
-		{
-			this.player.reset();
-			this.player.fadeIn();
-			this.isRestarting = false;
-		}
-	}
-
-	//------------------------------------------------------------------------------
-
-	public setCurrentMap(map: TileMapEntity)
-	{
-		this.currentMap = map;
-		this.player.setMapEntryPos();
-	}
-
-	//------------------------------------------------------------------------------
-
-	private addCentredText(y: number, str: string, color?: string): Phaser.Text
-	{
-		var text = this.add.text(0, y, str, { font: "24px Verdana,Helvetica,sans-serif" });
-		var left = (game.width - text.width) * 0.5;
-		text.position.x = left;
-		if (!color)
-			color = '#ffff00';
-		text.addColor(color, 0);
-		return text;
-	}
-
-	//------------------------------------------------------------------------------
-
-	private changeCentredText(text: Phaser.Text, newStr: string)
-	{
-		text.text = newStr;
-		text.position.x = (game.width - text.width) * 0.5;
-	}
-
-	//------------------------------------------------------------------------------
-
 	private maps: { [key: string]: TileMapEntity; };
-	private currentMap: TileMapEntity;
 	public player: PlayerEntity;
 	private fpsText: Phaser.Text;
 	private titleText: Phaser.Text;
 	private winEmitter1: WinSparkleEmitter;
 	private winEmitter2: WinSparkleEmitter;
-	private isRestarting: boolean;
 
 	public brokeWallSound: Phaser.Sound;
 	public chargeSound: Phaser.Sound;
@@ -242,7 +165,5 @@ class ClockwiseGame extends Phaser.Game
 	public openDoorSound: Phaser.Sound;
 	public rockInHoleSound: Phaser.Sound;
 }
-
-//------------------------------------------------------------------------------
 
 var game = new ClockwiseGame();

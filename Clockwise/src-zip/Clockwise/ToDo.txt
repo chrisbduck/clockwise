@@ -1,0 +1,7 @@
+﻿Tasks left to do:
+
+- Limited-time charge
+- Water emitter - attach to *rocks*
+- Rock rolling
+- Hints
+- Make player up/down anims more obvious
