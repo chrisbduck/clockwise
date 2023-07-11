@@ -3,7 +3,7 @@
 ///
 /// Main app
 /// 
-/// <reference path='phaser/phaser.d.ts'/>
+/// <reference path='phaser-ts/phaser.d.ts'/>
 /// <reference path='entities.ts'/>
 
 //------------------------------------------------------------------------------
@@ -142,7 +142,7 @@ class ClockwiseGame extends Phaser.Game
 		// Check for a restart room press
 		if (!this.isRestarting)
 		{
-			if (this.input.keyboard.isDown(Phaser.Keyboard.BACKSPACE))
+			if (this.input.keyboard.isDown(Phaser.Keyboard.BACKSPACE) && this.input.keyboard.isDown(Phaser.Keyboard.CONTROL))
 			{
 				this.isRestarting = true;
 				for (var key in this.maps)

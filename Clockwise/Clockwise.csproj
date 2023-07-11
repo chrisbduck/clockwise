@@ -10,7 +10,7 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
-    <TypeScriptToolsVersion>1.0</TypeScriptToolsVersion>
+    <TypeScriptToolsVersion>1.4</TypeScriptToolsVersion>
     <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
     <IISExpressAnonymousAuthentication />
@@ -44,9 +44,9 @@
     <TypeScriptCompile Include="app.ts" />
     <TypeScriptCompile Include="emitters.ts" />
     <TypeScriptCompile Include="entities.ts" />
-    <TypeScriptCompile Include="phaser\phaser.d.ts" />
-    <TypeScriptCompile Include="phaser\pixi.d.ts" />
-    <TypeScriptCompile Include="phaser\webgl.d.ts" />
+    <TypeScriptCompile Include="phaser-ts\p2.d.ts" />
+    <TypeScriptCompile Include="phaser-ts\phaser.d.ts" />
+    <TypeScriptCompile Include="phaser-ts\pixi.d.ts" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="assets\bottom-left.tmx" />

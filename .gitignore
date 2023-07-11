@@ -196,3 +196,7 @@ ModelManifest.xml
 /Clockwise/emitters.js.map
 /Clockwise/example.js
 /Clockwise/assets/tiles.svg
+/Clockwise/build-v1.0
+/Clockwise/src-zip/Clockwise-src.zip
+*.txt
+.vs

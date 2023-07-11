@@ -3,7 +3,7 @@
 ///
 /// Emitter classes
 /// 
-/// <reference path='phaser/phaser.d.ts'/>
+/// <reference path='phaser-ts/phaser.d.ts'/>
 
 //------------------------------------------------------------------------------
 
@@ -19,8 +19,8 @@ class BreakableWallEmitter
 		emitter.minParticleScale = 0.5;
 		emitter.maxParticleScale = 1;
 		emitter.gravity = 300;
-		//emitter.autoAlpha = true;
-		//emitter.setAlpha(0, 1, 1000);//, Phaser.Easing.Quadratic.Out(1));
+		emitter.autoAlpha = true;
+		emitter.setAlpha(1, 0, 3000, Phaser.Easing.Quadratic.In);
 
 		emitter.explode(3000, 10);
 

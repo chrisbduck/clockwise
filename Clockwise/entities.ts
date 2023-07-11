@@ -3,7 +3,7 @@
 ///
 /// Entity classes
 /// 
-/// <reference path='phaser/phaser.d.ts'/>
+/// <reference path='phaser-ts/phaser.d.ts'/>
 /// <reference path='emitters.ts'/>
 
 var FADE_OUT_DURATION_MS = 2000;
@@ -496,7 +496,7 @@ class TileMapEntity extends Entity
 
 		this.currentLayerIndex = layerIndex;
 
-		this.tileMap.setCollision(1);
+		this.tileMap.setCollision(TILE_WALL);
 
 		//this.tileMap.setTileIndexCallback(TILE_DOOR_UP, () => this.triggerLevelChange(+1), null);
 		//this.tileMap.setTileIndexCallback(TILE_DOOR_DOWN, () => this.triggerLevelChange(-1), null);
